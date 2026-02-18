@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Creds Galactic - Beta</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; background: #0a0a1a; color: #00ff88; overflow-x: auto; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    h1 { text-align: center; font-size: 2.5em; margin-bottom: 10px; text-shadow: 0 0 10px #00ff88; }
+    .intro { text-align: center; margin-bottom: 20px; font-size: 1.1em; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; justify-content: center; }
+    .tab { padding: 10px 16px; background: #1a1a2e; border: 1px solid #00ff88; cursor: pointer; border-radius: 5px; font-size: 0.95em; transition: all 0.2s; }
+    .tab.active { background: #00ff88; color: #0a0a1a; }
+    .tab.locked { background: #333; color: #666; cursor: not-allowed; opacity: 0.6; }
+    #grid-container { max-width: 100%; margin: 0 auto 20px; }
+    .grid { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 4px; width: 100%; }
+    @media (max-width: 768px) { .grid { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; } }
+    .square { aspect-ratio: 1; background: #333; border: 1px solid #555; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+    @media (max-width: 768px) { .square { font-size: 14px; } }
+    .square:hover { background: #444; box-shadow: 0 0 10px #00ff88; }
+    .square.selected { background: #0066cc; box-shadow: 0 0 20px #0066cc; }
+    .square.revealed { cursor: default; animation: flip 0.6s; }
+    .square.loss { background: #cc0000; color: white; }
+    .square.small { background: #ffaa00; color: black; }
+    .square.big { background: #00ff00; color: black; font-weight: bold; }
+    @keyframes flip { 0% { transform: rotateY(0); } 50% { transform: rotateY(90deg); } 100% { transform: rotateY(0); } }
+    .panel { background: #1a1a2e; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #00ff88; }
+    .remaining { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 15px; }
+    .stat { text-align: center; padding: 12px; background: #0a0a1a; border-radius: 6px; font-size: 1.05em; }
+    .odds-footer { text-align: center; font-size: 0.95em; color: #88ffcc; margin: 10px 0; }
+    .picks { margin: 10px 0; min-height: 40px; text-align: center; }
+    .pick { display: inline-block; background: #0066cc; padding: 6px 12px; margin: 3px; border-radius: 4px; font-size: 0.9em; }
+    .selected-count { text-align: center; font-size: 1.3em; margin: 10px 0; color: #00ccff; }
+    .randomizer { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
+    .random-input { width: 80px; padding: 10px; font-size: 1.1em; background: #1a1a2e; color: #00ff88; border: 1px solid #00ff88; border-radius: 6px; text-align: center; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 15px 0; }
+    button { background: #00ff88; color: #0a0a1a; border: none; padding: 12px 24px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 140px; transition: all 0.3s; }
+    button:hover { box-shadow: 0 0 15px #00ff88; transform: scale(1.05); }
+    button:disabled { background: #555; cursor: not-allowed; transform: none; }
+    .status { text-align: center; margin: 10px 0; font-size: 1.1em; color: #ffaa00; min-height: 1.2em; }
+    .history { max-height: 300px; overflow-y: auto; margin-top: 10px; }
+    .history-item { padding: 10px; border-bottom: 1px solid #333; font-size: 0.9em; }
+    .balance { font-size: 2.5em; text-align: center; margin: 20px 0; text-shadow: 0 0 8px #00ff88; }
+    audio { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Creds Galactic - Beta 🚀</h1>
+    <p class="intro">100 Free Creds Daily! Pick numbers, reveal wins. Games close at 420 of 500 played.</p>
+
+    <div class="tabs">
+      <div class="tab" data-board="basic1">Basic Game #1</div>
+      <div class="tab locked" data-board="basic2" title="Unlock by playing Basic #1">Basic Game #2</div>
+      <div class="tab locked" data-board="basic3" title="Unlock after #1 closes">Basic Game #3</div>
+      <div class="tab" data-board="premium1">Premium Game #1</div>
+      <div class="tab locked" data-board="premium2" title="Unlock by playing Premium #1">Premium Game #2</div>
+      <div class="tab locked" data-board="premium3" title="Unlock after #1 closes">Premium Game #3</div>
+    </div>
+
+    <div id="game" class="panel">
+      <div class="balance" id="balance">Balance: 100.0 Creds</div>
+      <div class="remaining">
+        <div class="stat">🟢 Big Wins Remaining: <span id="rem-big">165</span></div>
+        <div class="stat">🟡 Small Wins Remaining: <span id="rem-small">100</span></div>
+        <div class="stat">🔴 Losses Remaining: <span id="rem-loss">235</span></div>
+        <div class="stat">Played: <span id="played">0</span>/420</div>
+      </div>
+      <p class="odds-footer">Total Odds (500 squares): Big Win 33% • Loss 47% • Small Win 20%</p>
+      <div id="picks" class="picks"></div>
+      <div class="selected-count" id="selected-count">Selected: 0</div>
+      <div class="randomizer">
+        <input id="random-input" type="number" min="1" value="10" class="random-input" placeholder="Creds">
+        <button id="randomize">Randomize</button>
+      </div>
+      <div id="reveal-status" class="status"></div>
+      <div class="actions">
+        <button id="claim">Claim Daily Creds</button>
+        <button id="randomize-btn" disabled>Randomize (0/3 today)</button>
+        <button id="submit" disabled>Reveal Picks!</button>
+        <button id="clear">Clear Picks</button>
+      </div>
+    </div>
+
+    <div id="grid-container">
+      <div id="grid" class="grid"></div>
+    </div>
+
+    <div class="panel">
+      <h3>History</h3>
+      <div id="history" class="history"></div>
+    </div>
+
+    <div id="top-winners" class="panel" style="display: none;">
+      <h3>Biggest Winners This Game</h3>
+      <div id="winners-list"></div>
+    </div>
+  </div>
+
+  <!-- Sounds -->
+  <audio id="sound-loss" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-game-buzzer-2216.mp3"></audio>
+  <audio id="sound-small" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-rocket-launch-2029.mp3"></audio>
+  <audio id="sound-big" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-engine-1021.mp3"></audio>
+
+  <script>
+    // CONFIG & STATE
+    const CONFIG = {
+      total: 500,
+      closeAt: 420,
+      loss: 235, small: 100, big: 165,
+      payouts: { loss: 0.5, small: 1.1, big: 1.5 }
+    };
+    const PREMIUM_MULT = 5;
+    const DAILY_CRED_LIMIT_PER_BOARD = 100;
+    const MAX_RANDOMS_PER_DAY = 3;
+
+    let currentBoard = 'basic1';
+    let board = [], revealed = new Set(), selected = new Set();
+    let balance = 100;
+    let username = localStorage.getItem('username') || '';
+    let gameId = 0, played = 0;
+    let history = JSON.parse(localStorage.getItem('history') || '[]');
+    let dailyClaimed = localStorage.getItem('dailyClaimed') || '';
+    let dailySpent = JSON.parse(localStorage.getItem('dailySpent') || '{}');
+    let randomsToday = parseInt(localStorage.getItem('randomsToday') || '0');
+    let randomDate = localStorage.getItem('randomDate') || new Date().toDateString();
+    let unlockedBoards = JSON.parse(localStorage.getItem('unlockedBoards') || '{"basic1":true,"premium1":true}');
+
+    const el = {
+      balance: document.getElementById('balance'),
+      remBig: document.getElementById('rem-big'),
+      remSmall: document.getElementById('rem-small'),
+      remLoss: document.getElementById('rem-loss'),
+      played: document.getElementById('played'),
+      picks: document.getElementById('picks'),
+      selectedCount: document.getElementById('selected-count'),
+      randomInput: document.getElementById('random-input'),
+      randomize: document.getElementById('randomize'),
+      submit: document.getElementById('submit'),
+      clear: document.getElementById('clear'),
+      claim: document.getElementById('claim'),
+      status: document.getElementById('reveal-status'),
+      history: document.getElementById('history'),
+      winners: document.getElementById('winners-list'),
+      grid: document.getElementById('grid'),
+      topWinners: document.getElementById('top-winners')
+    };
+
+    // Update tabs based on unlocked state
+    function updateTabs() {
+      document.querySelectorAll('.tab').forEach(tab => {
+        const boardId = tab.dataset.board;
+        if (unlockedBoards[boardId]) {
+          tab.classList.remove('locked');
+          tab.title = '';
+        } else {
+          tab.classList.add('locked');
+          tab.title = 'Unlock by playing previous board';
+        }
+        if (boardId === currentBoard) tab.classList.add('active');
+      });
+    }
+
+    window.onload = () => {
+      const now = new Date().toDateString();
+      if (randomDate !== now) {
+        randomsToday = 0;
+        randomDate = now;
+        localStorage.setItem('randomsToday', '0');
+        localStorage.setItem('randomDate', now);
+      }
+      updateRandomButton();
+      updateTabs();
+
+      if (!username) {
+        setTimeout(() => {
+          username = prompt('Enter your username (e.g., @DirkMannis):')?.trim() || 'Player';
+          localStorage.setItem('username', username);
+          newGame();
+        }, 800);
+      } else {
+        newGame();
+      }
+      updateBalance();
+      loadHistory();
+    };
+
+    // ──────────────────────────────────────────────
+    // BOARD SWITCH & UNLOCK LOGIC
+    // ──────────────────────────────────────────────
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.onclick = () => {
+        if (tab.classList.contains('locked')) return;
+        document.querySelector('.tab.active')?.classList.remove('active');
+        tab.classList.add('active');
+        currentBoard = tab.dataset.board;
+        newGame();
+      };
+    });
+
+    function unlockNextBoard() {
+      const type = currentBoard.startsWith('basic') ? 'basic' : 'premium';
+      const num = parseInt(currentBoard.replace(/\D/g, '')) || 1;
+      const nextBoard = `${type}${num + 1}`;
+      if (num < 3 && !unlockedBoards[nextBoard]) {
+        unlockedBoards[nextBoard] = true;
+        localStorage.setItem('unlockedBoards', JSON.stringify(unlockedBoards));
+        updateTabs();
+      }
+    }
+
+    // Call unlockNextBoard() in submit after successful reveal
+    // (added in submit.onclick below)
+
+    // ──────────────────────────────────────────────
+    // DAILY LIMIT PER BOARD
+    // ──────────────────────────────────────────────
+    function canSpendMore(credAmount) {
+      const today = new Date().toDateString();
+      if (!dailySpent[today]) dailySpent[today] = {};
+      const spent = dailySpent[today][currentBoard] || 0;
+      return spent + credAmount <= DAILY_CRED_LIMIT_PER_BOARD;
+    }
+
+    function recordSpend(credAmount) {
+      const today = new Date().toDateString();
+      if (!dailySpent[today]) dailySpent[today] = {};
+      dailySpent[today][currentBoard] = (dailySpent[today][currentBoard] || 0) + credAmount;
+      localStorage.setItem('dailySpent', JSON.stringify(dailySpent));
+    }
+
+    // ──────────────────────────────────────────────
+    // TOGGLE SQUARE (with limit check)
+    // ──────────────────────────────────────────────
+    function toggleSquare(i) {
+      const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
+      const sq = document.querySelector(`[data-index="${i}"]`);
+
+      if (revealed.has(i)) return;
+
+      if (selected.has(i)) {
+        selected.delete(i);
+        balance += cost;
+        sq.classList.remove('selected');
+      } else {
+        if (balance < cost || !canSpendMore(cost)) {
+          el.status.textContent = 'Daily limit reached for this board or not enough balance!';
+          return;
+        }
+        selected.add(i);
+        balance -= cost;
+        recordSpend(cost);
+        sq.classList.add('selected');
+      }
+
+      updatePicks();
+      updateSelectedCount();
+      updateBalance();
+      el.submit.disabled = selected.size === 0;
+      el.status.textContent = '';
+    }
+
+    // ──────────────────────────────────────────────
+    // SUBMIT / REVEAL (with unlock call)
+    // ──────────────────────────────────────────────
+    el.submit.onclick = async () => {
+      el.submit.disabled = true;
+      el.clear.disabled = true;
+      el.randomize.disabled = true;
+      el.status.textContent = 'Revealing...';
+      const mult = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
+      const picks = Array.from(selected);
+      let totalWin = 0;
+
+      for (let k = 0; k < picks.length; k++) {
+        const i = picks[k];
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const outcome = board[i];
+        revealed.add(i);
+        played++;
+
+        const sq = document.querySelector(`[data-index="${i}"]`);
+        sq.classList.add('revealed', outcome);
+        sq.innerHTML = `<strong>${outcome.toUpperCase()}<br>+${(CONFIG.payouts[outcome] * mult).toFixed(1)}</strong>`;
+
+        playSound(outcome);
+        totalWin += CONFIG.payouts[outcome] * mult;
+
+        updateStats();
+      }
+
+      balance += totalWin;
+      updateBalance();
+      selected.clear();
+      updatePicks();
+      updateSelectedCount();
+      el.status.textContent = `Revealed! +${totalWin.toFixed(1)} Creds`;
+      el.submit.disabled = false;
+      el.clear.disabled = false;
+      el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
+
+      // Unlock next board if at least 1 pick was revealed
+      if (picks.length > 0) unlockNextBoard();
+
+      if (played >= CONFIG.closeAt) {
+        closeGame();
+      }
+    };
+
+    // Rest of the functions (newGame, shuffle, updateGrid, updatePicks, updateSelectedCount, clear.onclick, playSound, updateStats, closeGame, updateWinners, loadHistory, updateBalance, updateRandomButton) remain the same as in v5
+    // Copy them from the previous version here
+
+    // For brevity, assuming you have v5 code — just replace the <script> block with this updated one + the above functions.
+  </script>
+</body>
+</html>
