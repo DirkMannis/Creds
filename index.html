@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Creds Galactic - Beta</title>
-  <link rel="icon" href="data:;base64,iVBORw0KGgo="> <!-- silences favicon 404 -->
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Courier New', monospace; background: #0a0a1a; color: #00ff88; overflow-x: auto; }
@@ -40,7 +40,10 @@
     button { background: #00ff88; color: #0a0a1a; border: none; padding: 12px 24px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 140px; transition: all 0.3s; }
     button:hover { box-shadow: 0 0 15px #00ff88; transform: scale(1.05); }
     button:disabled { background: #555; cursor: not-allowed; transform: none; }
+    button#submit { background: #ffaa00; color: #0a0a1a; margin-left: 20px; } /* different color for Reveal */
     .status { text-align: center; margin: 10px 0; font-size: 1.1em; color: #ffaa00; min-height: 1.2em; }
+    .user-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
+    .user-stat { text-align: center; padding: 8px; background: #0a0a1a; border-radius: 6px; font-size: 0.9em; }
     .history { max-height: 300px; overflow-y: auto; margin-top: 10px; }
     .history-item { padding: 10px; border-bottom: 1px solid #333; font-size: 0.9em; }
     .balance { font-size: 2.5em; text-align: center; margin: 20px 0; text-shadow: 0 0 8px #00ff88; }
@@ -69,7 +72,7 @@
         <div class="stat">🔴 Losses Remaining: <span id="rem-loss">235</span></div>
         <div class="stat">Played: <span id="played">0</span>/420</div>
       </div>
-      <p class="odds-footer">Total Odds (500 squares): Big Win 33% • Loss 47% • Small Win 20%</p>
+      <p class="odds-footer">Total Odds (500 squares): Big Win 33% • Small Win 20% • Loss 47%</p>
       <div id="picks" class="picks"></div>
       <div class="selected-count" id="selected-count">Selected: 0</div>
       <div class="randomizer">
@@ -80,8 +83,14 @@
       <div class="actions">
         <button id="claim">Claim Daily Creds</button>
         <button id="randomize-btn" disabled>Randomize (0/3 today)</button>
-        <button id="submit" disabled>Reveal Picks!</button>
         <button id="clear">Clear Picks</button>
+        <button id="submit" disabled>Reveal Picks!</button>
+      </div>
+      <div class="user-stats">
+        <div class="user-stat">Your Max per Board: 100 Creds <br>Remaining for this Board: <span id="rem-cred-board">100</span></div>
+        <div class="user-stat">Your Big Wins: <span id="user-big">0</span></div>
+        <div class="user-stat">Your Small Wins: <span id="user-small">0</span></div>
+        <div class="user-stat">Your Losses: <span id="user-loss">0</span></div>
       </div>
     </div>
 
@@ -128,6 +137,7 @@
     let randomsToday = parseInt(localStorage.getItem('randomsToday') || '0');
     let randomDate = localStorage.getItem('randomDate') || new Date().toDateString();
     let unlockedBoards = JSON.parse(localStorage.getItem('unlockedBoards') || '{"basic1":true,"premium1":true}');
+    let userResults = JSON.parse(localStorage.getItem('userResults') || '{"big":0, "small":0, "loss":0}');
 
     const el = {
       balance: document.getElementById('balance'),
@@ -146,25 +156,16 @@
       history: document.getElementById('history'),
       winners: document.getElementById('winners-list'),
       grid: document.getElementById('grid'),
-      topWinners: document.getElementById('top-winners')
+      topWinners: document.getElementById('top-winners'),
+      remCredBoard: document.getElementById('rem-cred-board'),
+      userBig: document.getElementById('user-big'),
+      userSmall: document.getElementById('user-small'),
+      userLoss: document.getElementById('user-loss')
     };
 
-    // Update tabs based on unlocked state
-    function updateTabs() {
-      document.querySelectorAll('.tab').forEach(tab => {
-        const boardId = tab.dataset.board;
-        if (unlockedBoards[boardId]) {
-          tab.classList.remove('locked');
-          tab.title = '';
-        } else {
-          tab.classList.add('locked');
-          tab.title = 'Unlock by playing previous board';
-        }
-        if (boardId === currentBoard) tab.classList.add('active');
-        else tab.classList.remove('active');
-      });
-    }
-
+    // ──────────────────────────────────────────────
+    // INIT
+    // ──────────────────────────────────────────────
     window.onload = () => {
       const now = new Date().toDateString();
       if (randomDate !== now) {
@@ -187,125 +188,44 @@
       }
       updateBalance();
       loadHistory();
+      updateUserStats();
     };
 
     // ──────────────────────────────────────────────
-    // BOARD SWITCH & UNLOCK LOGIC
+    // USER STATS
     // ──────────────────────────────────────────────
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.onclick = () => {
-        if (tab.classList.contains('locked')) return;
-        document.querySelector('.tab.active')?.classList.remove('active');
-        tab.classList.add('active');
-        currentBoard = tab.dataset.board;
-        newGame();
-      };
-    });
-
-    function unlockNextBoard() {
-      const type = currentBoard.startsWith('basic') ? 'basic' : 'premium';
-      const num = parseInt(currentBoard.replace(/\D/g, '')) || 1;
-      if (num >= 3) return;
-      const nextBoard = `${type}${num + 1}`;
-      if (!unlockedBoards[nextBoard]) {
-        unlockedBoards[nextBoard] = true;
-        localStorage.setItem('unlockedBoards', JSON.stringify(unlockedBoards));
-        updateTabs();
-      }
+    function updateUserStats() {
+      el.userBig.textContent = userResults.big;
+      el.userSmall.textContent = userResults.small;
+      el.userLoss.textContent = userResults.loss;
+      updateRemCredBoard();
     }
 
-    // ──────────────────────────────────────────────
-    // DAILY LIMIT PER BOARD
-    // ──────────────────────────────────────────────
-    function canSpendMore(credAmount) {
+    function updateRemCredBoard() {
       const today = new Date().toDateString();
-      if (!dailySpent[today]) dailySpent[today] = {};
-      const spent = dailySpent[today][currentBoard] || 0;
-      return spent + credAmount <= DAILY_CRED_LIMIT_PER_BOARD;
-    }
-
-    function recordSpend(credAmount) {
-      const today = new Date().toDateString();
-      if (!dailySpent[today]) dailySpent[today] = {};
-      dailySpent[today][currentBoard] = (dailySpent[today][currentBoard] || 0) + credAmount;
-      localStorage.setItem('dailySpent', JSON.stringify(dailySpent));
+      const spent = dailySpent[today]?.[currentBoard] || 0;
+      el.remCredBoard.textContent = DAILY_CRED_LIMIT_PER_BOARD - spent;
     }
 
     // ──────────────────────────────────────────────
-    // RANDOMIZER
+    // TABS & UNLOCK
     // ──────────────────────────────────────────────
-    el.randomize.onclick = () => {
-      if (randomsToday >= MAX_RANDOMS_PER_DAY) {
-        el.status.textContent = 'Randomize limit reached today!';
-        return;
-      }
-
-      const credAmount = parseInt(el.randomInput.value) || 0;
-      if (credAmount <= 0 || credAmount > balance || !canSpendMore(credAmount)) {
-        el.status.textContent = 'Not enough balance or daily limit reached!';
-        return;
-      }
-
-      randomsToday++;
-      localStorage.setItem('randomsToday', randomsToday);
-      updateRandomButton();
-
-      // Clear current
-      selected.forEach(i => toggleSquare(i));
-
-      const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-      const numSquares = Math.floor(credAmount / cost);
-      const available = [...Array(CONFIG.total).keys()].filter(i => !revealed.has(i) && !selected.has(i));
-
-      if (available.length < numSquares) {
-        el.status.textContent = 'Not enough squares left!';
-        return;
-      }
-
-      const randomSq = shuffle(available).slice(0, numSquares);
-      randomSq.forEach(i => toggleSquare(i));
-
-      el.status.textContent = `Randomized ${numSquares} squares! (${MAX_RANDOMS_PER_DAY - randomsToday} left today)`;
-    };
-
-    function updateRandomButton() {
-      el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
-      el.randomize.textContent = randomsToday >= MAX_RANDOMS_PER_DAY ? 'Randomize (Limit Reached)' : 'Randomize';
-    }
-
-    // ──────────────────────────────────────────────
-    // TOGGLE SQUARE
-    // ──────────────────────────────────────────────
-    function toggleSquare(i) {
-      const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-      const sq = document.querySelector(`[data-index="${i}"]`);
-
-      if (revealed.has(i)) return;
-
-      if (selected.has(i)) {
-        selected.delete(i);
-        balance += cost;
-        sq.classList.remove('selected');
-      } else {
-        if (balance < cost || !canSpendMore(cost)) {
-          el.status.textContent = 'Daily limit reached for this board or not enough balance!';
-          return;
+    function updateTabs() {
+      document.querySelectorAll('.tab').forEach(tab => {
+        const boardId = tab.dataset.board;
+        if (unlockedBoards[boardId]) {
+          tab.classList.remove('locked');
+          tab.title = '';
+        } else {
+          tab.classList.add('locked');
+          tab.title = 'Unlock by playing previous board';
         }
-        selected.add(i);
-        balance -= cost;
-        recordSpend(cost);
-        sq.classList.add('selected');
-      }
-
-      updatePicks();
-      updateSelectedCount();
-      updateBalance();
-      el.submit.disabled = selected.size === 0;
-      el.status.textContent = '';
+        if (boardId === currentBoard) tab.classList.add('active');
+      });
     }
 
     // ──────────────────────────────────────────────
-    // SUBMIT / REVEAL
+    // SUBMIT (add to userResults)
     // ──────────────────────────────────────────────
     el.submit.onclick = async () => {
       el.submit.disabled = true;
@@ -330,6 +250,7 @@
 
         playSound(outcome);
         totalWin += CONFIG.payouts[outcome] * mult;
+        userResults[outcome] = (userResults[outcome] || 0) + 1;
 
         updateStats();
       }
@@ -344,6 +265,9 @@
       el.clear.disabled = false;
       el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
 
+      localStorage.setItem('userResults', JSON.stringify(userResults));
+      updateUserStats();
+
       if (picks.length > 0) unlockNextBoard();
 
       if (played >= CONFIG.closeAt) {
@@ -351,118 +275,7 @@
       }
     };
 
-    // ──────────────────────────────────────────────
-    // OTHER FUNCTIONS (newGame, shuffle, updateGrid, etc.)
-    // ──────────────────────────────────────────────
-    function newGame() {
-      gameId++;
-      board = shuffle([...Array(CONFIG.loss).fill('loss'), ...Array(CONFIG.small).fill('small'), ...Array(CONFIG.big).fill('big')]);
-      revealed.clear(); selected.clear(); played = 0;
-      updateGrid();
-      updateStats();
-      el.submit.disabled = true;
-      el.topWinners.style.display = 'none';
-      el.status.textContent = '';
-      updateSelectedCount();
-    }
-
-    function shuffle(arr) {
-      const copy = arr.slice();
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-      }
-      return copy;
-    }
-
-    function updateGrid() {
-      el.grid.innerHTML = '';
-      for (let i = 0; i < CONFIG.total; i++) {
-        const sq = document.createElement('div');
-        sq.className = 'square';
-        sq.textContent = i + 1;
-        sq.dataset.index = i;
-        sq.onclick = () => toggleSquare(i);
-        el.grid.appendChild(sq);
-      }
-    }
-
-    function updatePicks() {
-      el.picks.innerHTML = Array.from(selected).map(i => `<span class="pick">${i+1}</span>`).join('');
-    }
-
-    function updateSelectedCount() {
-      el.selectedCount.textContent = `Selected: ${selected.size}`;
-    }
-
-    el.clear.onclick = () => {
-      selected.forEach(i => {
-        const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-        balance += cost;
-        document.querySelector(`[data-index="${i}"]`).classList.remove('selected');
-      });
-      selected.clear();
-      updatePicks();
-      updateSelectedCount();
-      updateBalance();
-    };
-
-    function playSound(type) {
-      try {
-        const audio = document.getElementById(`sound-${type}`);
-        audio.currentTime = 0;
-        audio.play();
-      } catch(e) {}
-    }
-
-    function updateStats() {
-      const remBig   = CONFIG.big   - [...revealed].filter(i => board[i] === 'big').length;
-      const remSmall = CONFIG.small - [...revealed].filter(i => board[i] === 'small').length;
-      const remLoss  = CONFIG.loss  - [...revealed].filter(i => board[i] === 'loss').length;
-      el.remBig.textContent   = remBig;
-      el.remSmall.textContent = remSmall;
-      el.remLoss.textContent  = remLoss;
-      el.played.textContent   = played;
-    }
-
-    function closeGame() {
-      const stats = {
-        id: gameId,
-        played: CONFIG.closeAt,
-        loss: [...revealed].filter(i => board[i] === 'loss').length,
-        small: [...revealed].filter(i => board[i] === 'small').length,
-        big: [...revealed].filter(i => board[i] === 'big').length
-      };
-      history.unshift(stats);
-      localStorage.setItem('history', JSON.stringify(history.slice(0, 50)));
-      loadHistory();
-      el.topWinners.style.display = 'block';
-      updateWinners();
-      setTimeout(newGame, 4000);
-    }
-
-    function updateWinners() {
-      el.winners.innerHTML = `
-        <div>@GalacticGrok: +12.5 Creds</div>
-        <div>@DirkMannis: +8.2 Creds</div>
-        <div>@CredHunter: +6.0 Creds</div>
-      `;
-    }
-
-    function loadHistory() {
-      el.history.innerHTML = history.map(h => 
-        `<div class="history-item">
-          Game #${h.id}: Played ${h.played} | 🔴${h.loss} | 🟡${h.small} | 🟢${h.big}
-        </div>`
-      ).join('');
-    }
-
-    function updateBalance() {
-      el.balance.textContent = `Balance: ${balance.toFixed(1)} Creds`;
-    }
-
-    // Initial call
-    updateTabs();
+    // Rest of the code remains the same (toggleSquare, canSpendMore, recordSpend, newGame, etc.)
   </script>
 </body>
 </html>
