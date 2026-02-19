@@ -34,17 +34,17 @@
     .picks { margin: 10px 0; min-height: 40px; text-align: center; }
     .pick { display: inline-block; background: #0066cc; padding: 6px 12px; margin: 3px; border-radius: 4px; font-size: 0.9em; }
     .selected-count { text-align: center; font-size: 1.3em; margin: 10px 0; color: #00ccff; }
-    .randomizer { display: flex; align-items: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; justify-content: center; }
-    .random-input { width: 80px; padding: 10px; font-size: 1.1em; background: #1a1a2e; color: #00ff88; border: 1px solid #00ff88; border-radius: 6px; text-align: center; }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 15px 0; }
-    button { background: #00ff88; color: #0a0a1a; border: none; padding: 12px 24px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 160px; transition: all 0.3s; text-align: center; }
+    button { background: #00ff88; color: #0a0a1a; border: none; padding: 14px 28px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 160px; height: 48px; transition: all 0.3s; text-align: center; display: flex; align-items: center; justify-content: center; }
     button:hover { box-shadow: 0 0 15px #00ff88; transform: scale(1.05); }
     button:disabled { background: #555; cursor: not-allowed; transform: none; }
     button#submit { background: #ffaa00; color: #0a0a1a; min-width: 160px; }
-    button#claim { background: #666; color: #ccc; font-size: 0.95em; padding: 8px 16px; min-width: auto; }
+    button#claim { background: #666; color: #ccc; font-size: 0.95em; padding: 8px 16px; min-width: auto; height: auto; }
     button#claim.enabled { background: #00ff88; color: #0a0a1a; cursor: pointer; }
     .status { text-align: center; margin: 10px 0; font-size: 1.1em; color: #ffaa00; min-height: 1.2em; }
-    .user-stats { text-align: center; margin: 15px 0; font-size: 0.9em; color: #88ffcc; background: #0a0a1a; padding: 10px; border-radius: 6px; }
+    .user-stats { text-align: center; margin: 15px 0; font-size: 0.9em; color: #88ffcc; background: #0a0a1a; padding: 12px; border-radius: 6px; }
+    .randomizer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .random-input { width: 80px; padding: 10px; font-size: 1.1em; background: #1a1a2e; color: #00ff88; border: 1px solid #00ff88; border-radius: 6px; text-align: center; height: 48px; }
     .history { max-height: 300px; overflow-y: auto; margin-top: 10px; }
     .history-item { padding: 10px; border-bottom: 1px solid #333; font-size: 0.9em; }
     .balance-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
@@ -91,7 +91,7 @@
       </div>
       <div class="user-stats">
         Your Results: Big Wins <span id="user-big">0</span> • Small Wins <span id="user-small">0</span> • Losses <span id="user-loss">0</span><br>
-        Max per Board: 100 Creds • Remaining for this Board: <span id="rem-cred-board">100</span>
+        Max per Board: 100 Choices • Remaining for this Board: <span id="rem-cred-board">100</span>
       </div>
     </div>
 
@@ -138,7 +138,7 @@
     let randomsToday = parseInt(localStorage.getItem('randomsToday') || '0');
     let randomDate = localStorage.getItem('randomDate') || new Date().toDateString();
     let unlockedBoards = JSON.parse(localStorage.getItem('unlockedBoards') || '{"basic1":true,"premium1":true}');
-    let userResults = JSON.parse(localStorage.getItem('userResults') || '{"big":0, "small":0, "loss":0}');
+    let userResults = JSON.parse(localStorage.getItem('userResults') || '{"big":0,"small":0,"loss":0}');
 
     const el = {
       balance: document.getElementById('balance'),
@@ -164,7 +164,6 @@
       userLoss: document.getElementById('user-loss')
     };
 
-    // INIT & TIMER
     window.onload = () => {
       const now = new Date().toDateString();
       if (randomDate !== now) {
@@ -190,9 +189,6 @@
       updateUserStats();
     };
 
-    // ──────────────────────────────────────────────
-    // TABS & UNLOCK
-    // ──────────────────────────────────────────────
     function updateTabs() {
       document.querySelectorAll('.tab').forEach(tab => {
         const boardId = tab.dataset.board;
@@ -220,17 +216,11 @@
       }
     }
 
-    // ──────────────────────────────────────────────
-    // RANDOMIZER BUTTON STATE
-    // ──────────────────────────────────────────────
     function updateRandomButton() {
       el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
       el.randomize.textContent = randomsToday >= MAX_RANDOMS_PER_DAY ? 'Randomize (Limit Reached)' : 'Randomize';
     }
 
-    // ──────────────────────────────────────────────
-    // RANDOMIZE LOGIC
-    // ──────────────────────────────────────────────
     el.randomize.onclick = () => {
       if (randomsToday >= MAX_RANDOMS_PER_DAY) {
         el.status.textContent = 'Randomize limit reached today!';
@@ -264,9 +254,6 @@
       el.status.textContent = `Randomized ${numSquares} squares! (${MAX_RANDOMS_PER_DAY - randomsToday} left today)`;
     };
 
-    // ──────────────────────────────────────────────
-    // DAILY LIMIT PER BOARD
-    // ──────────────────────────────────────────────
     function canSpendMore(credAmount) {
       const today = new Date().toDateString();
       if (!dailySpent[today]) dailySpent[today] = {};
@@ -281,9 +268,6 @@
       localStorage.setItem('dailySpent', JSON.stringify(dailySpent));
     }
 
-    // ──────────────────────────────────────────────
-    // TOGGLE SQUARE
-    // ──────────────────────────────────────────────
     function toggleSquare(i) {
       const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
       const sq = document.querySelector(`[data-index="${i}"]`);
@@ -312,9 +296,14 @@
       el.status.textContent = '';
     }
 
-    // ──────────────────────────────────────────────
-    // SUBMIT / REVEAL
-    // ──────────────────────────────────────────────
+    function updatePicks() {
+      el.picks.innerHTML = Array.from(selected).map(i => `<span class="pick">${i+1}</span>`).join('');
+    }
+
+    function updateSelectedCount() {
+      el.selectedCount.textContent = `Selected: ${selected.size}`;
+    }
+
     el.submit.onclick = async () => {
       el.submit.disabled = true;
       el.clear.disabled = true;
@@ -362,50 +351,6 @@
         closeGame();
       }
     };
-
-    // ──────────────────────────────────────────────
-    // CORE FUNCTIONS
-    // ──────────────────────────────────────────────
-    function newGame() {
-      gameId++;
-      board = shuffle([...Array(CONFIG.loss).fill('loss'), ...Array(CONFIG.small).fill('small'), ...Array(CONFIG.big).fill('big')]);
-      revealed.clear(); selected.clear(); played = 0;
-      updateGrid();
-      updateStats();
-      el.submit.disabled = true;
-      el.topWinners.style.display = 'none';
-      el.status.textContent = '';
-      updateSelectedCount();
-    }
-
-    function shuffle(arr) {
-      const copy = arr.slice();
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-      }
-      return copy;
-    }
-
-    function updateGrid() {
-      el.grid.innerHTML = '';
-      for (let i = 0; i < CONFIG.total; i++) {
-        const sq = document.createElement('div');
-        sq.className = 'square';
-        sq.textContent = i + 1;
-        sq.dataset.index = i;
-        sq.onclick = () => toggleSquare(i);
-        el.grid.appendChild(sq);
-      }
-    }
-
-    function updatePicks() {
-      el.picks.innerHTML = Array.from(selected).map(i => `<span class="pick">${i+1}</span>`).join('');
-    }
-
-    function updateSelectedCount() {
-      el.selectedCount.textContent = `Selected: ${selected.size}`;
-    }
 
     el.clear.onclick = () => {
       selected.forEach(i => {
