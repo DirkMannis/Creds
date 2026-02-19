@@ -34,20 +34,16 @@
     .picks { margin: 10px 0; min-height: 40px; text-align: center; }
     .pick { display: inline-block; background: #0066cc; padding: 6px 12px; margin: 3px; border-radius: 4px; font-size: 0.9em; }
     .selected-count { text-align: center; font-size: 1.3em; margin: 10px 0; color: #00ccff; }
-    .randomizer { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
+    .randomizer { display: flex; align-items: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; justify-content: center; }
     .random-input { width: 80px; padding: 10px; font-size: 1.1em; background: #1a1a2e; color: #00ff88; border: 1px solid #00ff88; border-radius: 6px; text-align: center; }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 15px 0; }
     button { background: #00ff88; color: #0a0a1a; border: none; padding: 12px 24px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 140px; transition: all 0.3s; }
     button:hover { box-shadow: 0 0 15px #00ff88; transform: scale(1.05); }
     button:disabled { background: #555; cursor: not-allowed; transform: none; }
-    button#submit { background: #ffaa00; color: #0a0a1a; font-weight: bold; min-width: 160px; }
-    button#claim { background: #666; color: #ccc; font-size: 0.95em; padding: 8px 16px; min-width: auto; }
-    button#claim.enabled { background: #00ff88; color: #0a0a1a; cursor: pointer; }
+    button#submit { background: #ffaa00; color: #0a0a1a; min-width: 160px; }
     .status { text-align: center; margin: 10px 0; font-size: 1.1em; color: #ffaa00; min-height: 1.2em; }
-    .user-stats { text-align: center; margin: 10px 0; font-size: 0.95em; color: #88ffcc; background: #0a0a1a; padding: 10px; border-radius: 6px; }
-    .history { max-height: 300px; overflow-y: auto; margin-top: 10px; }
-    .history-item { padding: 10px; border-bottom: 1px solid #333; font-size: 0.9em; }
-    .balance-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .user-stats { text-align: center; margin: 15px 0; font-size: 0.9em; color: #88ffcc; background: #0a0a1a; padding: 10px; border-radius: 6px; }
+    .balance-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
     .balance { font-size: 2.5em; text-shadow: 0 0 8px #00ff88; }
     audio { display: none; }
   </style>
@@ -84,13 +80,12 @@
         Your Results: Big Wins <span id="user-big">0</span> • Small Wins <span id="user-small">0</span> • Losses <span id="user-loss">0</span><br>
         Max per Board: 100 Creds • Remaining for this Board: <span id="rem-cred-board">100</span>
       </div>
-      <div class="randomizer">
-        <input id="random-input" type="number" min="1" value="10" class="random-input" placeholder="Creds">
-        <button id="randomize">Randomize</button>
-      </div>
       <div id="reveal-status" class="status"></div>
       <div class="actions">
-        <button id="randomize-btn" disabled>Randomize (0/3 today)</button>
+        <div class="randomizer">
+          <input id="random-input" type="number" min="1" value="10" class="random-input" placeholder="Creds">
+          <button id="randomize">Randomize</button>
+        </div>
         <button id="submit" disabled>Reveal Picks!</button>
         <button id="clear">Clear Picks</button>
       </div>
@@ -117,7 +112,7 @@
   <audio id="sound-big" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-engine-1021.mp3"></audio>
 
   <script>
-    // CONFIG & STATE (unchanged)
+    // CONFIG & STATE
     const CONFIG = {
       total: 500,
       closeAt: 420,
@@ -140,7 +135,6 @@
     let randomDate = localStorage.getItem('randomDate') || new Date().toDateString();
     let unlockedBoards = JSON.parse(localStorage.getItem('unlockedBoards') || '{"basic1":true,"premium1":true}');
     let userResults = JSON.parse(localStorage.getItem('userResults') || '{"big":0, "small":0, "loss":0}');
-    let claimTimerInterval;
 
     const el = {
       balance: document.getElementById('balance'),
@@ -166,9 +160,6 @@
       userLoss: document.getElementById('user-loss')
     };
 
-    // ──────────────────────────────────────────────
-    // INIT & TIMER
-    // ──────────────────────────────────────────────
     window.onload = () => {
       const now = new Date().toDateString();
       if (randomDate !== now) {
@@ -179,8 +170,6 @@
       }
       updateRandomButton();
       updateTabs();
-      updateClaimButton();
-      startClaimTimer();
 
       if (!username) {
         setTimeout(() => {
@@ -196,48 +185,55 @@
       updateUserStats();
     };
 
-    function startClaimTimer() {
-      clearInterval(claimTimerInterval);
-      claimTimerInterval = setInterval(updateClaimButton, 60000); // update every minute
-      updateClaimButton();
+    // ──────────────────────────────────────────────
+    // RANDOMIZER BUTTON STATE
+    // ──────────────────────────────────────────────
+    function updateRandomButton() {
+      el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
+      el.randomize.textContent = randomsToday >= MAX_RANDOMS_PER_DAY ? 'Randomize (Limit Reached)' : 'Randomize';
     }
 
-    function updateClaimButton() {
-      const now = new Date();
-      const today = now.toDateString();
-      if (dailyClaimed === today) {
-        el.claim.classList.add('disabled');
-        el.claim.disabled = true;
-        const tomorrow = new Date(now);
-        tomorrow.setDate(now.getDate() + 1);
-        tomorrow.setHours(0, 0, 0, 0);
-        const diff = tomorrow - now;
-        const hours = Math.floor(diff / 3600000);
-        const mins = Math.floor((diff % 3600000) / 60000);
-        el.claim.textContent = `Next claim in ${hours}h ${mins}m`;
-      } else {
-        el.claim.classList.remove('disabled');
-        el.claim.disabled = false;
-        el.claim.textContent = 'Claim Daily Creds';
+    // ──────────────────────────────────────────────
+    // RANDOMIZE LOGIC
+    // ──────────────────────────────────────────────
+    el.randomize.onclick = () => {
+      if (randomsToday >= MAX_RANDOMS_PER_DAY) {
+        el.status.textContent = 'Randomize limit reached today!';
+        return;
       }
-    }
 
-    el.claim.onclick = () => {
-      if (el.claim.disabled) return;
-      const now = new Date().toDateString();
-      balance = Math.max(100, balance);
-      dailyClaimed = now;
-      localStorage.setItem('dailyClaimed', now);
-      updateBalance();
-      updateClaimButton();
-      el.status.textContent = 'Daily Creds claimed!';
-      setTimeout(() => el.status.textContent = '', 3000);
+      const credAmount = parseInt(el.randomInput.value) || 0;
+      if (credAmount <= 0 || credAmount > balance || !canSpendMore(credAmount)) {
+        el.status.textContent = 'Not enough balance or daily limit reached!';
+        return;
+      }
+
+      randomsToday++;
+      localStorage.setItem('randomsToday', randomsToday);
+      updateRandomButton();
+
+      // Clear current selections
+      selected.forEach(i => toggleSquare(i));
+
+      const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
+      const numSquares = Math.floor(credAmount / cost);
+      const available = [...Array(CONFIG.total).keys()].filter(i => !revealed.has(i) && !selected.has(i));
+
+      if (available.length < numSquares) {
+        el.status.textContent = 'Not enough squares left!';
+        return;
+      }
+
+      const randomSq = shuffle(available).slice(0, numSquares);
+      randomSq.forEach(i => toggleSquare(i));
+
+      el.status.textContent = `Randomized ${numSquares} squares! (${MAX_RANDOMS_PER_DAY - randomsToday} left today)`;
     };
 
-    // Rest of the code (tabs, unlockNextBoard, canSpendMore, recordSpend, toggleSquare, randomizer, submit, clear, playSound, updateStats, closeGame, updateWinners, loadHistory, updateBalance, updateUserStats) remains unchanged from v6
-    // ... paste the full functions here from previous version
-
-    // For brevity, assuming you have v6 — just replace the <head> to <script> parts as above, keeping the rest.
+    // ──────────────────────────────────────────────
+    // REMAINING FUNCTIONS (copy-paste the rest from your working v6 version)
+    // newGame, shuffle, updateGrid, toggleSquare, updatePicks, updateSelectedCount, submit.onclick, clear.onclick, playSound, updateStats, closeGame, updateWinners, loadHistory, updateBalance, updateUserStats, canSpendMore, recordSpend, unlockNextBoard, updateTabs
+    // If you need the full block again, let me know — but assuming you have it, just ensure updateRandomButton is present and called correctly.
   </script>
 </body>
 </html>
