@@ -28,8 +28,8 @@
     .square.big { background: #00ff00; color: black; font-weight: bold; }
     @keyframes flip { 0% { transform: rotateY(0); } 50% { transform: rotateY(90deg); } 100% { transform: rotateY(0); } }
     .panel { background: #1a1a2e; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #00ff88; }
-    .remaining { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 15px; }
-    .stat { text-align: center; padding: 12px; background: #0a0a1a; border-radius: 6px; font-size: 1.05em; }
+    .remaining { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 15px; justify-content: center; }
+    .stat { text-align: center; padding: 12px; background: #0a0a1a; border-radius: 6px; font-size: 1.05em; flex: 1 1 140px; white-space: normal; }
     .odds-footer { text-align: center; font-size: 0.95em; color: #88ffcc; margin: 10px 0; }
     .picks { margin: 10px 0; min-height: 40px; text-align: center; }
     .pick { display: inline-block; background: #0066cc; padding: 6px 12px; margin: 3px; border-radius: 4px; font-size: 0.9em; }
@@ -37,12 +37,16 @@
     .randomizer { display: flex; align-items: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; justify-content: center; }
     .random-input { width: 80px; padding: 10px; font-size: 1.1em; background: #1a1a2e; color: #00ff88; border: 1px solid #00ff88; border-radius: 6px; text-align: center; }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 15px 0; }
-    button { background: #00ff88; color: #0a0a1a; border: none; padding: 12px 24px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 140px; transition: all 0.3s; }
+    button { background: #00ff88; color: #0a0a1a; border: none; padding: 12px 24px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 160px; transition: all 0.3s; text-align: center; }
     button:hover { box-shadow: 0 0 15px #00ff88; transform: scale(1.05); }
     button:disabled { background: #555; cursor: not-allowed; transform: none; }
     button#submit { background: #ffaa00; color: #0a0a1a; min-width: 160px; }
+    button#claim { background: #666; color: #ccc; font-size: 0.95em; padding: 8px 16px; min-width: auto; }
+    button#claim.enabled { background: #00ff88; color: #0a0a1a; cursor: pointer; }
     .status { text-align: center; margin: 10px 0; font-size: 1.1em; color: #ffaa00; min-height: 1.2em; }
     .user-stats { text-align: center; margin: 15px 0; font-size: 0.9em; color: #88ffcc; background: #0a0a1a; padding: 10px; border-radius: 6px; }
+    .history { max-height: 300px; overflow-y: auto; margin-top: 10px; }
+    .history-item { padding: 10px; border-bottom: 1px solid #333; font-size: 0.9em; }
     .balance-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
     .balance { font-size: 2.5em; text-shadow: 0 0 8px #00ff88; }
     audio { display: none; }
@@ -76,18 +80,18 @@
       <p class="odds-footer">Total Odds (500 squares): Big Win 33% • Small Win 20% • Loss 47%</p>
       <div id="picks" class="picks"></div>
       <div class="selected-count" id="selected-count">Selected: 0</div>
-      <div class="user-stats">
-        Your Results: Big Wins <span id="user-big">0</span> • Small Wins <span id="user-small">0</span> • Losses <span id="user-loss">0</span><br>
-        Max per Board: 100 Creds • Remaining for this Board: <span id="rem-cred-board">100</span>
-      </div>
       <div id="reveal-status" class="status"></div>
       <div class="actions">
         <div class="randomizer">
           <input id="random-input" type="number" min="1" value="10" class="random-input" placeholder="Creds">
           <button id="randomize">Randomize</button>
         </div>
-        <button id="submit" disabled>Reveal Picks!</button>
         <button id="clear">Clear Picks</button>
+        <button id="submit" disabled>Reveal Picks!</button>
+      </div>
+      <div class="user-stats">
+        Your Results: Big Wins <span id="user-big">0</span> • Small Wins <span id="user-small">0</span> • Losses <span id="user-loss">0</span><br>
+        Max per Board: 100 Creds • Remaining for this Board: <span id="rem-cred-board">100</span>
       </div>
     </div>
 
@@ -112,7 +116,7 @@
   <audio id="sound-big" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-engine-1021.mp3"></audio>
 
   <script>
-    // CONFIG & STATE
+    // CONFIG & STATE (unchanged)
     const CONFIG = {
       total: 500,
       closeAt: 420,
@@ -160,6 +164,7 @@
       userLoss: document.getElementById('user-loss')
     };
 
+    // INIT & TIMER (unchanged from v7)
     window.onload = () => {
       const now = new Date().toDateString();
       if (randomDate !== now) {
@@ -194,7 +199,7 @@
     }
 
     // ──────────────────────────────────────────────
-    // RANDOMIZE LOGIC
+    // RANDOMIZE LOGIC (unchanged)
     // ──────────────────────────────────────────────
     el.randomize.onclick = () => {
       if (randomsToday >= MAX_RANDOMS_PER_DAY) {
@@ -212,7 +217,6 @@
       localStorage.setItem('randomsToday', randomsToday);
       updateRandomButton();
 
-      // Clear current selections
       selected.forEach(i => toggleSquare(i));
 
       const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
@@ -231,9 +235,9 @@
     };
 
     // ──────────────────────────────────────────────
-    // REMAINING FUNCTIONS (copy-paste the rest from your working v6 version)
+    // OTHER FUNCTIONS (paste the rest from v7 here)
     // newGame, shuffle, updateGrid, toggleSquare, updatePicks, updateSelectedCount, submit.onclick, clear.onclick, playSound, updateStats, closeGame, updateWinners, loadHistory, updateBalance, updateUserStats, canSpendMore, recordSpend, unlockNextBoard, updateTabs
-    // If you need the full block again, let me know — but assuming you have it, just ensure updateRandomButton is present and called correctly.
+    // ... (the full functions from previous version go here)
   </script>
 </body>
 </html>
