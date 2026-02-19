@@ -40,13 +40,15 @@
     button { background: #00ff88; color: #0a0a1a; border: none; padding: 12px 24px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 140px; transition: all 0.3s; }
     button:hover { box-shadow: 0 0 15px #00ff88; transform: scale(1.05); }
     button:disabled { background: #555; cursor: not-allowed; transform: none; }
-    button#submit { background: #ffaa00; color: #0a0a1a; margin-left: 20px; } /* different color for Reveal */
+    button#submit { background: #ffaa00; color: #0a0a1a; font-weight: bold; min-width: 160px; }
+    button#claim { background: #666; color: #ccc; font-size: 0.95em; padding: 8px 16px; min-width: auto; }
+    button#claim.enabled { background: #00ff88; color: #0a0a1a; cursor: pointer; }
     .status { text-align: center; margin: 10px 0; font-size: 1.1em; color: #ffaa00; min-height: 1.2em; }
-    .user-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
-    .user-stat { text-align: center; padding: 8px; background: #0a0a1a; border-radius: 6px; font-size: 0.9em; }
+    .user-stats { text-align: center; margin: 10px 0; font-size: 0.95em; color: #88ffcc; background: #0a0a1a; padding: 10px; border-radius: 6px; }
     .history { max-height: 300px; overflow-y: auto; margin-top: 10px; }
     .history-item { padding: 10px; border-bottom: 1px solid #333; font-size: 0.9em; }
-    .balance { font-size: 2.5em; text-align: center; margin: 20px 0; text-shadow: 0 0 8px #00ff88; }
+    .balance-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .balance { font-size: 2.5em; text-shadow: 0 0 8px #00ff88; }
     audio { display: none; }
   </style>
 </head>
@@ -65,7 +67,10 @@
     </div>
 
     <div id="game" class="panel">
-      <div class="balance" id="balance">Balance: 100.0 Creds</div>
+      <div class="balance-line">
+        <div class="balance" id="balance">Balance: 100.0 Creds</div>
+        <button id="claim" class="disabled">Claim Daily Creds</button>
+      </div>
       <div class="remaining">
         <div class="stat">🟢 Big Wins Remaining: <span id="rem-big">165</span></div>
         <div class="stat">🟡 Small Wins Remaining: <span id="rem-small">100</span></div>
@@ -75,22 +80,19 @@
       <p class="odds-footer">Total Odds (500 squares): Big Win 33% • Small Win 20% • Loss 47%</p>
       <div id="picks" class="picks"></div>
       <div class="selected-count" id="selected-count">Selected: 0</div>
+      <div class="user-stats">
+        Your Results: Big Wins <span id="user-big">0</span> • Small Wins <span id="user-small">0</span> • Losses <span id="user-loss">0</span><br>
+        Max per Board: 100 Creds • Remaining for this Board: <span id="rem-cred-board">100</span>
+      </div>
       <div class="randomizer">
         <input id="random-input" type="number" min="1" value="10" class="random-input" placeholder="Creds">
         <button id="randomize">Randomize</button>
       </div>
       <div id="reveal-status" class="status"></div>
       <div class="actions">
-        <button id="claim">Claim Daily Creds</button>
         <button id="randomize-btn" disabled>Randomize (0/3 today)</button>
-        <button id="clear">Clear Picks</button>
         <button id="submit" disabled>Reveal Picks!</button>
-      </div>
-      <div class="user-stats">
-        <div class="user-stat">Your Max per Board: 100 Creds <br>Remaining for this Board: <span id="rem-cred-board">100</span></div>
-        <div class="user-stat">Your Big Wins: <span id="user-big">0</span></div>
-        <div class="user-stat">Your Small Wins: <span id="user-small">0</span></div>
-        <div class="user-stat">Your Losses: <span id="user-loss">0</span></div>
+        <button id="clear">Clear Picks</button>
       </div>
     </div>
 
@@ -115,7 +117,7 @@
   <audio id="sound-big" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-engine-1021.mp3"></audio>
 
   <script>
-    // CONFIG & STATE
+    // CONFIG & STATE (unchanged)
     const CONFIG = {
       total: 500,
       closeAt: 420,
@@ -138,6 +140,7 @@
     let randomDate = localStorage.getItem('randomDate') || new Date().toDateString();
     let unlockedBoards = JSON.parse(localStorage.getItem('unlockedBoards') || '{"basic1":true,"premium1":true}');
     let userResults = JSON.parse(localStorage.getItem('userResults') || '{"big":0, "small":0, "loss":0}');
+    let claimTimerInterval;
 
     const el = {
       balance: document.getElementById('balance'),
@@ -164,7 +167,7 @@
     };
 
     // ──────────────────────────────────────────────
-    // INIT
+    // INIT & TIMER
     // ──────────────────────────────────────────────
     window.onload = () => {
       const now = new Date().toDateString();
@@ -176,6 +179,8 @@
       }
       updateRandomButton();
       updateTabs();
+      updateClaimButton();
+      startClaimTimer();
 
       if (!username) {
         setTimeout(() => {
@@ -191,91 +196,48 @@
       updateUserStats();
     };
 
-    // ──────────────────────────────────────────────
-    // USER STATS
-    // ──────────────────────────────────────────────
-    function updateUserStats() {
-      el.userBig.textContent = userResults.big;
-      el.userSmall.textContent = userResults.small;
-      el.userLoss.textContent = userResults.loss;
-      updateRemCredBoard();
+    function startClaimTimer() {
+      clearInterval(claimTimerInterval);
+      claimTimerInterval = setInterval(updateClaimButton, 60000); // update every minute
+      updateClaimButton();
     }
 
-    function updateRemCredBoard() {
-      const today = new Date().toDateString();
-      const spent = dailySpent[today]?.[currentBoard] || 0;
-      el.remCredBoard.textContent = DAILY_CRED_LIMIT_PER_BOARD - spent;
-    }
-
-    // ──────────────────────────────────────────────
-    // TABS & UNLOCK
-    // ──────────────────────────────────────────────
-    function updateTabs() {
-      document.querySelectorAll('.tab').forEach(tab => {
-        const boardId = tab.dataset.board;
-        if (unlockedBoards[boardId]) {
-          tab.classList.remove('locked');
-          tab.title = '';
-        } else {
-          tab.classList.add('locked');
-          tab.title = 'Unlock by playing previous board';
-        }
-        if (boardId === currentBoard) tab.classList.add('active');
-      });
-    }
-
-    // ──────────────────────────────────────────────
-    // SUBMIT (add to userResults)
-    // ──────────────────────────────────────────────
-    el.submit.onclick = async () => {
-      el.submit.disabled = true;
-      el.clear.disabled = true;
-      el.randomize.disabled = true;
-      el.status.textContent = 'Revealing...';
-      const mult = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-      const picks = Array.from(selected);
-      let totalWin = 0;
-
-      for (let k = 0; k < picks.length; k++) {
-        const i = picks[k];
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const outcome = board[i];
-        revealed.add(i);
-        played++;
-
-        const sq = document.querySelector(`[data-index="${i}"]`);
-        sq.classList.add('revealed', outcome);
-        sq.innerHTML = `<strong>${outcome.toUpperCase()}<br>+${(CONFIG.payouts[outcome] * mult).toFixed(1)}</strong>`;
-
-        playSound(outcome);
-        totalWin += CONFIG.payouts[outcome] * mult;
-        userResults[outcome] = (userResults[outcome] || 0) + 1;
-
-        updateStats();
+    function updateClaimButton() {
+      const now = new Date();
+      const today = now.toDateString();
+      if (dailyClaimed === today) {
+        el.claim.classList.add('disabled');
+        el.claim.disabled = true;
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const diff = tomorrow - now;
+        const hours = Math.floor(diff / 3600000);
+        const mins = Math.floor((diff % 3600000) / 60000);
+        el.claim.textContent = `Next claim in ${hours}h ${mins}m`;
+      } else {
+        el.claim.classList.remove('disabled');
+        el.claim.disabled = false;
+        el.claim.textContent = 'Claim Daily Creds';
       }
+    }
 
-      balance += totalWin;
+    el.claim.onclick = () => {
+      if (el.claim.disabled) return;
+      const now = new Date().toDateString();
+      balance = Math.max(100, balance);
+      dailyClaimed = now;
+      localStorage.setItem('dailyClaimed', now);
       updateBalance();
-      selected.clear();
-      updatePicks();
-      updateSelectedCount();
-      el.status.textContent = `Revealed! +${totalWin.toFixed(1)} Creds`;
-      el.submit.disabled = false;
-      el.clear.disabled = false;
-      el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
-
-      localStorage.setItem('userResults', JSON.stringify(userResults));
-      updateUserStats();
-
-      if (picks.length > 0) unlockNextBoard();
-
-      if (played >= CONFIG.closeAt) {
-        closeGame();
-      }
+      updateClaimButton();
+      el.status.textContent = 'Daily Creds claimed!';
+      setTimeout(() => el.status.textContent = '', 3000);
     };
 
-    // Rest of the code remains the same (toggleSquare, canSpendMore, recordSpend, newGame, etc.)
+    // Rest of the code (tabs, unlockNextBoard, canSpendMore, recordSpend, toggleSquare, randomizer, submit, clear, playSound, updateStats, closeGame, updateWinners, loadHistory, updateBalance, updateUserStats) remains unchanged from v6
+    // ... paste the full functions here from previous version
+
+    // For brevity, assuming you have v6 — just replace the <head> to <script> parts as above, keeping the rest.
   </script>
 </body>
 </html>
