@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tip a Random Grok User · TEST MODE</title>
-<meta name="description" content="Play-money test board: tip a random Grok user, and tippers get a chance to be tipped back 2×.">
+<title>Tip a Random Grok User · FREE BETA</title>
+<meta name="description" content="Free play-money beta: tip a random Grok user on a 500-square board, and tippers get a chance to be tipped back 2×.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
 <style>
@@ -56,18 +56,24 @@ h1{font-size:20px;margin:0;letter-spacing:-.01em}
 .stats{display:flex;gap:8px;flex-wrap:wrap}
 .stat{background:#0e121c;border:1px solid var(--line);border-radius:10px;padding:5px 10px;font-size:12px;color:var(--mut)}
 .stat b{color:var(--txt);font-size:13px}
+.board-title .sq{font-size:13px;font-weight:600;color:var(--mut)}
+.netstat{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0e121c;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:12px}
+.netstat b{font-size:15px}
+.net-rcv{color:var(--dbl)}.net-tip{color:#ffb27a}.net-even{color:var(--txt)}
+.note.beta{border-color:#2f3f74;color:#c6d3ff}
 .progress{height:6px;background:#0e121c;border-radius:6px;overflow:hidden;margin:2px 0 10px;border:1px solid var(--line)}
 .progress>i{display:block;height:100%;background:linear-gradient(90deg,#6f8dff,#20d48a)}
-.grid{display:grid;grid-template-columns:repeat(25,1fr);gap:3px;user-select:none;-webkit-user-select:none;perspective:900px}
-.tile{aspect-ratio:1;border-radius:5px;display:grid;place-items:center;font-size:10px;font-weight:800;position:relative;
+/* 20 wide × 25 tall = 500 squares; tile text scales with the grid width (container units, px fallback) */
+.grid{display:grid;grid-template-columns:repeat(20,1fr);gap:3px;user-select:none;-webkit-user-select:none;perspective:900px;container-type:inline-size}
+.tile{aspect-ratio:1;border-radius:6px;display:grid;place-items:center;font-size:13px;font-size:clamp(8px,1.85cqw,16px);font-weight:800;position:relative;
   border:1px solid transparent;transition:background .2s,border-color .2s,transform .12s;overflow:hidden;line-height:1;white-space:nowrap}
-.tile.empty{background:#121725;border-color:#1c2233;color:#3a435c;font-size:7.5px;font-weight:600;cursor:pointer}
+.tile.empty{background:#121725;border-color:#222a3d;color:#9aa6c4;font-size:11px;font-size:clamp(7px,1.45cqw,13px);font-weight:700;letter-spacing:-.01em;cursor:pointer}
 .tile.empty:hover{border-color:var(--sel);color:var(--sel);transform:scale(1.08);z-index:2}
 .tile.sel{background:rgba(62,224,255,.18);border-color:var(--sel);color:var(--sel);cursor:pointer;box-shadow:0 0 0 1px var(--sel) inset}
-.tile.sel::after{content:"✓";font-size:11px}
+.tile.sel::after{content:"✓";font-size:1.15em}
 .tile.held{background:repeating-linear-gradient(45deg,#3a2810,#3a2810 4px,#56391a 4px,#56391a 8px);border-color:var(--held)}
 .tile.drawing{background:#232b44;border-color:#6f8dff;color:#9fb3ff;animation:pulse 1s infinite}
-.tile.patron{background:var(--pat);color:#b9c6e6;cursor:pointer}
+.tile.patron{background:var(--pat);color:#d4ddf2;cursor:pointer}
 .tile.double{background:linear-gradient(135deg,#1fd58a,#0f9a62);color:#04150d;cursor:pointer}
 .tile.big{background:linear-gradient(135deg,#ffe07a,#ffab1f);color:#3a2500;cursor:pointer;box-shadow:0 0 10px rgba(255,194,61,.6)}
 .tile.host{background:linear-gradient(135deg,#c9a0ff,#8a55e6);color:#1c0a3a;cursor:pointer}
@@ -89,6 +95,8 @@ h1{font-size:20px;margin:0;letter-spacing:-.01em}
 .lg.double{background:var(--dbl)}.lg.big{background:var(--big)}.lg.host{background:var(--host)}.lg.patron{background:var(--pat)}
 .lg.mine{background:#222;box-shadow:0 0 0 2px #fff inset}.lg.sel{background:rgba(62,224,255,.25);box-shadow:0 0 0 1px var(--sel) inset}
 .selbar{margin-top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:#0e121c;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+/* taller 20×25 grid: keep the Hold/Finish bar in view while picking */
+.selbar.float{position:sticky;bottom:10px;z-index:5;box-shadow:0 -6px 24px rgba(4,6,10,.6);border-color:#33405e}
 .selbar .info{font-size:13px}
 .selbar .info b{font-size:15px}
 .selbar .acts{display:flex;gap:8px;flex-wrap:wrap}
@@ -144,7 +152,7 @@ h1{font-size:20px;margin:0;letter-spacing:-.01em}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px;margin:10px 0}
 .kv dt{color:var(--mut)}
 .kv dd{margin:0;font-weight:600}
-.mini{display:grid;grid-template-columns:repeat(25,1fr);gap:2px;margin-top:10px}
+.mini{display:grid;grid-template-columns:repeat(20,1fr);gap:2px;margin:10px auto 0;max-width:360px}
 .mini .tile{font-size:0;border-radius:3px}
 .mini .tile.empty{font-size:0}
 .big-burst{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
@@ -181,10 +189,12 @@ h1{font-size:20px;margin:0;letter-spacing:-.01em}
 @keyframes tin{from{transform:translateY(10px);opacity:0}}
 @media (max-width:980px){.layout{grid-template-columns:1fr}}
 @media (max-width:640px){
-  .grid,.mini{grid-template-columns:repeat(20,1fr);gap:2px}
-  .tile{font-size:8px;border-radius:3px}
-  .tile.empty{color:transparent}
-  .top{padding:12px 14px 4px}.tabs,.layout,.foot{padding:0 12px}
+  .grid{gap:2px}
+  .tile{border-radius:3px}
+  .tile.empty{font-size:7px;letter-spacing:-.04em}
+  .boardcard{padding:10px 8px}
+  .selbar.float{bottom:62px}
+  .top{padding:12px 14px 4px}.tabs,.layout,.foot{padding:0 10px}
   h1{font-size:17px}
   .card{padding:12px}
   .devtoggle{bottom:12px;right:12px}
@@ -194,7 +204,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 </style>
 </head>
 <body>
-<div class="testbar" role="status">TEST MODE — play money, no real tips</div>
+<div class="testbar" role="status">FREE BETA — play money, no real tips</div>
 
 <header class="top">
   <div class="brand">
@@ -237,7 +247,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 </main>
 
 <footer class="foot">
-  Test build for design review. No payments are sent or received; every amount here is play money.
+  Free beta. No payments are sent or received; every amount here is play money.
   Rules draft v0.3 · pending legal review.
 </footer>
 
@@ -259,7 +269,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 'use strict';
 /* ===== Constants ===== */
 const KEY = 'grokTipBoard.v1';
-const GRID = 500, CLOSE_AT = 400, MILESTONE = 20, BIG_UNLOCK = 100;
+const GRID = 500, CLOSE_AT = 400, MILESTONE = 20, BIG_UNLOCK = 100; // 500 squares on the board (20 wide × 25 tall), 400 get played
+const NUDGE = 'Enjoying it? Real-tip boards are coming — your beta results show whether you’d have been a net tipper or a net receiver.';
 const BAG0 = { double: 192, big: 2, host: 1, patron: 205 };
 const DAY = 864e5, STALL_MS = 5 * DAY, HOLD_MS = 15 * 60e3, CASHOUT_MS = 16 * 3600e3;
 const STAKES = [{ v: 5, live: true, note: 'main' }, { v: 20, live: true, note: 'open' }, { v: 100, live: false, note: 'coming soon' }];
@@ -285,11 +296,21 @@ const RESERVED_EXACT = ['grok','xai','x','elon','elonmusk','twitter','host','ope
 let S;
 const UI = { sel: new Set(), revealing: new Set(), animating: false, summaryQ: [], deferred: [], modal: null, dripT: 0 };
 
-function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return s && s.v === 1 ? s : null; } catch { return null; } }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return s && s.v === 1 ? migrate(s) : null; } catch { return null; } }
+// Older saves have no tipped/received totals: derive them from open boards + archive.
+function migrate(s) {
+  if (!s.me.tot) {
+    let tipped = 0, received = 0;
+    for (const b of Object.values(s.boards)) { tipped += (b.counts.me || 0) * b.stake; for (const w of b.wins) if (w.o === 'me') received += w.un; }
+    for (const r of s.archive) { tipped += r.mine.count * r.stake; received += r.mine.won; }
+    s.me.tot = { tipped: r2(tipped), received: r2(received) };
+  }
+  return s;
+}
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { console.warn('save failed', e); } }
 function fresh() {
   S = { v: 1, seed: (Math.random() * 4294967296) >>> 0, clock: 0, wid: 0, lid: 0,
-    me: { mode: 'x', x: '', game: '', boardsPlayed: 0, onboarded: false, ea: {} },
+    me: { mode: 'x', x: '', game: '', boardsPlayed: 0, onboarded: false, ea: {}, tot: { tipped: 0, received: 0 } },
     wallet: { buckets: {}, log: [], cashouts: [] },
     boards: {}, seq: { 5: 0, 20: 0 }, carry: { 5: 0, 20: 0 }, archive: [], active: 5, hold: null,
     dev: { drip: false, open: false, bag: false } };
@@ -329,6 +350,7 @@ function play(b, idx, o, name, replay) {
   const p = draw(b); b.bag[p]--; b.plays++;
   b.sq[idx] = { o, n: name, p, k: b.plays, r: replay ? 1 : 0 };
   b.counts[o] = (b.counts[o] || 0) + 1;
+  if (o === 'me') S.me.tot.tipped = r2(S.me.tot.tipped + b.stake);
   if (p === 'double') b.wins.push({ id: ++S.wid, o, n: name, i: idx, t: 'double', amt: 2 * b.stake, un: 0, ev: null, k: b.plays });
   else if (p === 'big') { const amt = r2(5 * b.stake + (b.carryUsed ? 0 : b.carryIn)); b.carryUsed = true;
     b.wins.push({ id: ++S.wid, o, n: name, i: idx, t: 'big', amt, un: 0, ev: null, k: b.plays }); }
@@ -338,6 +360,7 @@ function play(b, idx, o, name, replay) {
 }
 function credit(b, a, note) {
   S.wallet.buckets[b.id] = r2((S.wallet.buckets[b.id] || 0) + a);
+  S.me.tot.received = r2(S.me.tot.received + a); // winnings only (DEV top-ups don't count)
   logW(note, a);
 }
 function logW(note, amt) { S.wallet.log.unshift({ id: ++S.lid, at: now(), note, amt }); S.wallet.log.length = Math.min(S.wallet.log.length, 80); }
@@ -396,7 +419,7 @@ function closeBoard(stake, reason) {
   const rec = { id: b.id, stake, n: b.n, reason, openedAt: b.openedAt, closedAt: b.closedAt, plays: b.plays, carryIn: b.carryIn,
     sq: b.sq, unsel,
     pay: { M, dblCount: dbl.length, dblPaid, scale, bigs: bigs.map(w => ({ n: w.n, amt: w.amt, i: w.i, me: w.o === 'me' })), hostDrawn: b.hostDrawn, hostPaid, seeded, carryOut, leftover, undrawnBig },
-    mine: { count: myCount, dbl: myWins.filter(w => w.t === 'double').length, big: myWins.filter(w => w.t === 'big').length,
+    mine: { count: myCount, tipped: r2(myCount * b.stake), dbl: myWins.filter(w => w.t === 'double').length, big: myWins.filter(w => w.t === 'big').length,
       host: b.sq.some(s => s && s.o === 'me' && s.p === 'host'), won: r2(sumBy(myWins, w => w.un)), cashed: bucket, ea: myCount >= 10 } };
   S.archive.unshift(rec); if (S.archive.length > 25) S.archive.length = 25;
   S.carry[stake] = carryOut;
@@ -410,6 +433,14 @@ const unlocked = () => r2(sumBy(Object.values(S.wallet.buckets), v => v));
 function pendingMine() { let p = 0; for (const b of Object.values(S.boards)) for (const w of b.wins) if (w.o === 'me') p += w.amt - w.un; return r2(p); }
 function spend(amt) { let left = amt; for (const k of Object.keys(S.wallet.buckets)) { const t = Math.min(left, S.wallet.buckets[k]); S.wallet.buckets[k] = r2(S.wallet.buckets[k] - t); left = r2(left - t); if (S.wallet.buckets[k] <= 0) delete S.wallet.buckets[k]; if (left <= 0) break; } }
 function cashOut() { const a = unlocked(); if (a <= 0) return; S.wallet.buckets = {}; S.wallet.cashouts.unshift({ id: ++S.lid, at: now(), amt: a, note: 'Cash-out request' }); logW('Cash-out requested (sent within 16 h)', -a); save(); renderAll(); toast(`💸 Cash-out of ${fmt(a)} requested — sent within 16 hours (simulated)`); }
+
+/* Net tipper / net receiver across all boards: received (unlocked/settled winnings) − tipped (every square, incl. replays) */
+function netOf(tipped, received) {
+  const n = r2(received - tipped);
+  if (!tipped && !received) return { n, label: 'No tips yet', cls: 'net-even', sign: '' };
+  return n > 0.004 ? { n, label: 'Net receiver', cls: 'net-rcv', sign: '+' } : n < -0.004 ? { n, label: 'Net tipper', cls: 'net-tip', sign: '−' } : { n, label: 'Even', cls: 'net-even', sign: '' };
+}
+const netText = x => x.sign ? `${x.sign}${fmt(Math.abs(x.n))}` : fmt(0);
 
 /* ===== Bots ===== */
 function pickBot(b) { for (let t = 0; t < 60; t++) { const n = BOTS[Math.floor(rnd() * BOTS.length)]; if ((b.counts['bot:' + n] || 0) < 20) return n; } return BOTS.find(n => (b.counts['bot:' + n] || 0) < 20); }
@@ -480,8 +511,8 @@ function renderHead() {
   const left = STALL_MS - (now() - b.openedAt);
   $('boardHead').innerHTML = `
     <div>
-      <div class="board-title">$${b.stake} Board #${b.n}${b.ea ? '<span class="ea">⚡ Early Access</span>' : ''}</div>
-      <div class="mut" style="font-size:12.5px">Tip $${b.stake} per square · ${b.carryIn > 0 ? `<b style="color:var(--big)">Carryover ${fmt(b.carryIn)}</b> rides on the first Big Send · ` : ''}closes at ${CLOSE_AT} plays or in 5 days</div>
+      <div class="board-title">$${b.stake} Board #${b.n} <span class="sq">· ${GRID} squares</span>${b.ea ? '<span class="ea">⚡ Early Access</span>' : ''}</div>
+      <div class="mut" style="font-size:12.5px">$${b.stake} per square · ${b.carryIn > 0 ? `<b style="color:var(--big)">Carryover ${fmt(b.carryIn)}</b> rides on the first Big Send · ` : ''}closes when ${CLOSE_AT} squares are played or after 5 days</div>
     </div>
     <div class="stats">
       <span class="stat">Plays <b>${b.plays}</b>/${CLOSE_AT}</span>
@@ -494,6 +525,7 @@ function renderHead() {
 }
 function renderSelbar() {
   const b = cur(), n = UI.sel.size, cap = capFor('me'), mine = b.counts.me || 0;
+  $('selbar').classList.toggle('float', !!(S.hold || n));
   if (S.hold) {
     const hb = S.boards[S.hold.stake];
     $('selbar').innerHTML = `<div class="info">⏳ <b>${S.hold.squares.length}</b> square${S.hold.squares.length > 1 ? 's' : ''} held on ${label(hb)} · code <b>${S.hold.code}</b> · <span class="timer" id="holdLeft">${dur(S.hold.exp - now())}</span></div>
@@ -521,7 +553,9 @@ function renderWallet() {
   for (const c of S.wallet.cashouts.slice(0, 4)) { const done = now() - c.at >= CASHOUT_MS;
     items.push(`<li><span>${esc(c.note)} <span class="pill ${done ? 'ok' : 'wait'}">${done ? 'Sent (simulated)' : `Sending · ≤16 h (${dur(c.at + CASHOUT_MS - now())} left)`}</span></span><span class="amt">${fmt(c.amt)}</span></li>`); }
   for (const l of S.wallet.log.slice(0, 8)) items.push(`<li><span>${esc(l.note)}</span><span class="amt ${l.amt >= 0 ? 'pos' : 'neg'}">${l.amt >= 0 ? '+' : '−'}${fmt(Math.abs(l.amt))}</span></li>`);
+  const t = S.me.tot, nx = netOf(t.tipped, t.received);
   $('walletCard').innerHTML = `<h3>Your wallet <small>${esc(meName())}</small></h3>
+    <div class="netstat" id="netStat" title="All boards so far: received (unlocked winnings) minus tipped (every square, including replays). Pending wins count once they unlock."><span><small class="mut" style="display:block">Beta result · all boards</small><b class="${nx.cls}">${nx.label}${nx.sign ? ' ' + netText(nx) : ''}</b></span><span class="mut" style="text-align:right">Tipped ${fmt(t.tipped)}<br>Received ${fmt(t.received)}${p > 0 ? ` <span style="color:#ffd27a">(+${fmt(p)} pending)</span>` : ''}</span></div>
     <div class="wal"><div class="u"><small>Unlocked</small><b>${fmt(u)}</b></div><div class="p"><small>Pending</small><b>${fmt(p)}</b></div></div>
     <div class="row"><button class="btn good sm" data-act="replayHint" ${u < 5 ? 'disabled' : ''}>Replay</button><button class="btn sm" data-act="cashOut" ${u <= 0 ? 'disabled' : ''}>Cash out</button><span class="mut" style="font-size:12px">or hold it</span></div>
     <div class="mut" style="font-size:12px;margin-top:8px">Pending wins unlock every 20 plays. Whatever's left from a board cashes out automatically at close.</div>
@@ -530,7 +564,7 @@ function renderWallet() {
 function renderNext() {
   const b = cur(); const mine = b.counts.me || 0;
   $('nextCard').innerHTML = `<h3>Up next <small>$${b.stake} Board #${b.n + 1}</small></h3>
-    <div style="font-size:13.5px">Play 10 or more squares on the open board to unlock Early Access to the next one — get your name out early.</div>
+    <div style="font-size:13.5px">Play 10 or more of the ${GRID} squares on the open board to unlock Early Access to the next one — get your name out early.</div>
     <div class="row" style="margin-top:8px"><span class="pill ${mine >= 10 ? 'ok' : ''}">${mine >= 10 ? '⚡ Early Access unlocked' : `You: ${mine}/10`}</span><span class="pill">Cap: ${capFor('me')} per board${S.me.boardsPlayed >= 2 ? '' : ` · 40 after 2 boards (you: ${S.me.boardsPlayed})`}</span></div>
     <div class="mut" style="font-size:12px;margin-top:8px">Any carryover is posted on the next board when it opens. Referral bonus squares: planned.</div>`;
 }
@@ -542,7 +576,7 @@ function renderFeed() {
 }
 function renderArchive() {
   $('archiveCard').innerHTML = `<h3>Closed boards <small>${S.archive.length}</small></h3>
-    <ul class="list">${S.archive.map((r, k) => `<li><span>$${r.stake} Board #${r.n} · ${reasonText(r.reason)} · ${r.plays} plays</span><button class="btn sm" data-act="viewArchive" data-k="${k}">View</button></li>`).join('') || '<li class="mut">None yet.</li>'}</ul>`;
+    <ul class="list">${S.archive.map((r, k) => `<li><span>$${r.stake} Board #${r.n} · ${reasonText(r.reason)} · ${r.plays} of ${GRID}</span><button class="btn sm" data-act="viewArchive" data-k="${k}">View</button></li>`).join('') || '<li class="mut">None yet.</li>'}</ul>`;
 }
 const reasonText = r => r === 'full' ? 'Full' : r === 'stall' ? '5-day stall' : 'Closed early';
 function renderMe() { $('meChip').textContent = (S.me.mode === 'x' ? '𝕏 ' : '🎭 ') + meName(); }
@@ -554,11 +588,11 @@ function closeModal(kind) { if (kind && UI.modal !== kind) return; UI.modal = nu
 
 function onboarding(edit) {
   const m = S.me;
-  openModal('name', `<h2>${edit ? 'Your display name' : 'Welcome to the test board 🎲'}</h2>
-    <p class="sub">${edit ? 'Pick how your tiles are labeled.' : 'This is a play-money test of the $5 board. Nothing is charged or sent. Pick how your tiles are labeled:'}</p>
+  openModal('name', `<h2>${edit ? 'Your display name' : 'Welcome to the free beta 🎲'}</h2>
+    <p class="sub">${edit ? 'Pick how your tiles are labeled.' : 'This is a free, play-money beta of the $5 board: 500 squares, 400 get played. Nothing is charged or sent. Pick how your tiles are labeled:'}</p>
     <label class="choice ${m.mode === 'x' ? 'on' : ''}"><input type="radio" name="mode" value="x" ${m.mode === 'x' ? 'checked' : ''}><div class="f"><b>Use my X handle</b> <span class="mut">(sign in with X is simulated in test)</span><input type="text" id="nmX" placeholder="@yourhandle" value="${esc(m.x ? '@' + m.x : '')}" maxlength="16"></div></label>
     <label class="choice ${m.mode === 'game' ? 'on' : ''}"><input type="radio" name="mode" value="game" ${m.mode === 'game' ? 'checked' : ''}><div class="f"><b>Use an in-game handle</b> <span class="mut">(screened: no slurs, gross stuff, “official”, or lookalikes)</span><input type="text" id="nmG" placeholder="e.g. NightOwl_42" value="${esc(m.game)}" maxlength="15"></div></label>
-    ${edit ? '' : `<label class="choice"><input type="checkbox" id="agree"><div class="f">I understand this is a <b>test</b>: play money only, rules are a draft (v0.3) pending legal review.</div></label>`}
+    ${edit ? '' : `<label class="choice"><input type="checkbox" id="agree"><div class="f">I understand this is a <b>free beta</b>: play money only, no real tips, rules are a draft (v0.3) pending legal review.</div></label>`}
     <div class="err" id="nmErr"></div>
     <div class="acts">${edit ? '<button class="btn ghost" data-close>Cancel</button>' : ''}<button class="btn pri" data-act="saveName">${edit ? 'Save' : 'Start playing'}</button></div>`);
 }
@@ -567,7 +601,7 @@ function saveName() {
   const raw = mode === 'x' ? $('nmX').value : $('nmG').value;
   const err = checkName(raw, mode);
   if (err) { $('nmErr').textContent = err; return; }
-  if ($('agree') && !$('agree').checked) { $('nmErr').textContent = 'Please confirm you understand this is a test.'; return; }
+  if ($('agree') && !$('agree').checked) { $('nmErr').textContent = 'Please confirm you understand this is a free beta.'; return; }
   const v = raw.trim().replace(/^@/, '');
   S.me.mode = mode; if (mode === 'x') S.me.x = v; else S.me.game = v; S.me.onboarded = true;
   // relabel my tiles on open boards
@@ -586,7 +620,7 @@ function payModal() {
       <li>The board matches your code, amount and handle, marks your squares paid, and draws each one from the bag.</li>
     </ol>
     <div class="note">Your tip goes to a random opted-in player. You'll see “your tip went to a player” — never who.</div>
-    <div class="note test">TEST MODE: nothing is sent. Use the button below to simulate the X Money payment arriving.</div>
+    <div class="note test">FREE BETA: nothing is sent. Use the button below to simulate the X Money payment arriving.</div>
     <div class="acts">
       <button class="btn danger sm" data-act="cancelHold">Cancel hold</button>
       <button class="btn good" data-act="payWallet" ${u >= amt ? '' : 'disabled'} title="Replay with unlocked wallet dollars">Pay with wallet (${fmt(u)} unlocked)</button>
@@ -664,8 +698,9 @@ function miniGrid(rec) {
 function summaryModal(rec) {
   const P = rec.pay; const u = { double: 0, big: 0, host: 0 }; rec.unsel.forEach(x => u[x.p]++);
   const myBest = rec.mine.big ? 'big' : rec.mine.dbl ? 'double' : 'patron';
+  const bt = rec.mine.tipped ?? r2(rec.mine.count * rec.stake), bn = netOf(bt, rec.mine.won), an = netOf(S.me.tot.tipped, S.me.tot.received);
   openModal('summary', `<h2>$${rec.stake} Board #${rec.n} closed · ${reasonText(rec.reason)}</h2>
-    <p class="sub">${rec.plays} paid plays · opened ${new Date(rec.openedAt).toLocaleString()} · closed ${new Date(rec.closedAt).toLocaleString()}</p>
+    <p class="sub">${playedLine(rec)} · opened ${new Date(rec.openedAt).toLocaleString()} · closed ${new Date(rec.closedAt).toLocaleString()}</p>
     <dl class="kv">
       <dt>Tips in</dt><dd>${fmt(rec.plays * rec.stake)}${rec.carryIn ? ` + ${fmt(rec.carryIn)} carryover` : ''}</dd>
       <dt>Double Ups</dt><dd>${P.dblCount} × ${fmt(2 * rec.stake)} = ${fmt(P.dblPaid)}${P.scale < 1 ? ` <span class="pill wait">scaled to ${Math.round(P.scale * 100)}%</span>` : ''}</dd>
@@ -675,28 +710,39 @@ function summaryModal(rec) {
       <dt>Carryover → #${rec.n + 1}</dt><dd>${fmt(P.carryOut)}${P.undrawnBig ? ` <span class="mut">(incl. ${P.undrawnBig} undrawn Big Send${P.undrawnBig > 1 ? 's' : ''})</span>` : ''}</dd>
       <dt>Unselected prizes</dt><dd>${rec.unsel.length ? `${u.double} Double Up · ${u.big} Big Send · ${u.host} Host Tip <span class="mut">(display only, dashed tiles)</span>` : 'none — every prize was drawn'}</dd>
     </dl>
-    <div class="note"><b>You:</b> ${rec.mine.count} square${rec.mine.count === 1 ? '' : 's'} · ${rec.mine.dbl} Double Up · ${rec.mine.big} Big Send · won ${fmt(rec.mine.won)}${rec.mine.cashed ? ` · <b>${fmt(rec.mine.cashed)}</b> auto-cashed out (sent within 16 h)` : ''}${rec.mine.ea ? ' · ⚡ Early Access on the next board' : ''}</div>
+    <div class="note"><b>You:</b> ${rec.mine.count} square${rec.mine.count === 1 ? '' : 's'} · ${rec.mine.dbl} Double Up · ${rec.mine.big} Big Send · won ${fmt(rec.mine.won)}${rec.mine.cashed ? ` · <b>${fmt(rec.mine.cashed)}</b> auto-cashed out (sent within 16 h)` : ''}${rec.mine.ea ? ' · ⚡ Early Access on the next board' : ''}
+      ${rec.mine.count ? `<br>This board: tipped ${fmt(bt)} · received ${fmt(rec.mine.won)} → <b class="${bn.cls}">${bn.label}${bn.sign ? ' ' + netText(bn) : ''}</b>` : ''}
+      <br>All boards so far: <b>${an.label}${an.sign ? ' ' + netText(an) : ''}</b> <span class="mut">(tipped ${fmt(S.me.tot.tipped)} · received ${fmt(S.me.tot.received)})</span></div>
     ${miniGrid(rec)}
     <div class="note">This summary shows the board and the payouts. It never shows who tipped whom.</div>
+    <div class="note beta">${NUDGE}</div>
     ${rec.mine.count ? `<div class="mut" style="font-size:12.5px;margin-top:10px">Share it:</div>${shareBlock(myBest, rec)}` : ''}
     <div class="acts"><button class="btn pri" data-close>Go to $${rec.stake} Board #${rec.n + 1} →</button></div>`, true);
+}
+function playedLine(rec) {
+  if (rec.reason === 'full') return `${rec.plays} of ${GRID} squares played · the other ${GRID - rec.plays} stay open`;
+  if (rec.reason === 'stall') return `Stalled after 5 days at ${rec.plays} of ${GRID} squares`;
+  return `Closed early at ${rec.plays} of ${GRID} squares`;
 }
 function nextSummary() { if (UI.modal || UI.animating || !UI.summaryQ.length) return; summaryModal(UI.summaryQ.shift()); }
 
 /* ===== Rules drawer ===== */
 function rulesHTML() {
-  return `<p class="mut">Draft v0.3 for review · TEST MODE uses play money.</p>
+  return `<p class="mut">Draft v0.3 for review · FREE BETA: play money, no real tips.</p>
   <h4>What it is</h4><ul><li>Tip a random Grok user, and tippers get a chance to be tipped back 2×.</li><li>Every paid square puts your name on the board. Tips route through the host, so nobody sees who tipped whom.</li></ul>
-  <h4>The bag (every 400-play board)</h4>
+  <h4>The board</h4><ul><li>Each board has <b>500 squares</b> (20 wide × 25 tall). You pick which ones you want.</li><li><b>400</b> of them get played. The board closes at 400 (or after 5 days), so the other 100 always stay open and there's room to choose your spot right up to the end.</li></ul>
+  <h4>The bag (400 prizes per board)</h4>
   <table><tr><th>Prize</th><th>Count</th><th>Pays ($5)</th></tr>
   <tr><td>Double Up</td><td>192</td><td>2 tips · $10</td></tr><tr><td>Big Send</td><td>2</td><td>5 tips · $25 (+ carryover on the first)</td></tr>
   <tr><td>Host Tip</td><td>1</td><td>host, $5 ×5, at close</td></tr><tr><td>Patron</td><td>205</td><td>tile only</td></tr></table>
-  <p class="mut">399 tips paid out, 1 tip seeds the next board's carryover. The board shows 500 squares; it closes when 400 are paid. Prizes are drawn live from what's left in the bag — nothing is pre-assigned.</p>
+  <p class="mut">399 tips paid out, 1 tip seeds the next board's carryover. One prize ticket per played square, 400 in all. Prizes are drawn live from what's left in the bag — nothing is pre-assigned.</p>
   <h4>How to play</h4><ul><li>Pick squares (cap: 20 per board while new, 40 after 2 boards; replays count).</li><li>Squares are held 15 min with a memo code like GROK-7Q4.</li><li>Send $5 × squares via X Money with the code in the note (simulated here).</li><li>Tiles flip one at a time, in square order.</li></ul>
   <h4>Unlock ladder</h4><ul><li>Wins show as pending right away.</li><li>Every 20 paid plays (replays count): Double Ups drawn since the last milestone even up ($5 back), and older ones unlock their profit, oldest first.</li><li>Big Sends unlock from 100 plays (or the next 20-play milestone if drawn later).</li><li>Host Tip pays at close only.</li></ul>
   <h4>Wallet</h4><ul><li>Winnings land as Pending, then Unlocked.</li><li>Replay unlocked dollars into squares on any open board, Cash out (sent within 16 hours), or hold.</li><li>At close, what's left from that board cashes out automatically.</li></ul>
-  <h4>Close</h4><ul><li>At 400 paid plays, or after 5 days (stall).</li><li>Early close: leftover prizes appear as <b>Unselected prizes</b> on empty squares (display only). Double Ups are scaled down proportionally if the tips in can't cover them. Undrawn Big Sends and leftover tips carry over. Host Tip paid only if drawn.</li><li>Then the board is archived and the next one opens with carryover posted.</li></ul>
-  <h4>Next board</h4><ul><li>Play 10 or more squares on the open board to unlock Early Access to the next one.</li></ul>
+  <h4>Close</h4><ul><li>When 400 of the 500 squares are played, or after 5 days (stall).</li><li>Early close: leftover prizes appear as <b>Unselected prizes</b> on empty squares (display only). Double Ups are scaled down proportionally if the tips in can't cover them. Undrawn Big Sends and leftover tips carry over. Host Tip paid only if drawn.</li><li>Then the board is archived and the next one opens with carryover posted.</li></ul>
+  <h4>Next board</h4><ul><li>Play 10 or more of the 500 squares on the open board to unlock Early Access to the next one.</li></ul>
+  <h4>Beta results</h4><ul><li>Your wallet tracks what you've tipped (every square, including replays) against what you've received (winnings once unlocked), across all boards, and shows whether you're a <b>net tipper</b> or a <b>net receiver</b>.</li></ul>
+  <div class="note beta">${NUDGE}</div>
   <h4>Fair play</h4><ul><li>Disputed or reversed tips void that square and any pending wins, and ban the player.</li><li>Display names are screened: no slurs, gross stuff, “official”, or lookalike handles.</li></ul>
   <p class="mut">Not legal advice. Real-money play is pending legal review and payment-app terms.</p>`;
 }
@@ -736,7 +782,7 @@ function toggle(i) {
   if (UI.sel.has(i)) { UI.sel.delete(i); updateTile(i); renderSelbar(); return; }
   const cap = capFor('me'), mine = b.counts.me || 0;
   if (mine + UI.sel.size >= cap) return toast(`Cap reached: ${cap} squares per board${cap === 20 ? ' (40 after 2 boards)' : ''}. Invite friends to speed up the board!`);
-  if (b.plays + UI.sel.size >= CLOSE_AT) return toast('That would go past the 400-play close.');
+  if (b.plays + UI.sel.size >= CLOSE_AT) return toast(`The board closes at ${CLOSE_AT} of its ${GRID} squares — that would go past it.`);
   UI.sel.add(i); updateTile(i); renderSelbar();
 }
 function quickPick(n) { const b = cur(); const empt = []; for (let i = 0; i < GRID; i++) if (!b.sq[i] && !UI.sel.has(i)) empt.push(i);
