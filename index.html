@@ -1,496 +1,807 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Creds Galactic Game - Beta</title>
-  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Courier New', monospace; background: #0a0a1a; color: #00ff88; overflow-x: auto; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-    h1 { text-align: center; font-size: 2.5em; margin-bottom: 10px; text-shadow: 0 0 10px #00ff88; }
-    .intro { text-align: center; margin-bottom: 20px; font-size: 1.1em; }
-    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; justify-content: center; }
-    .tab { padding: 10px 16px; background: #1a1a2e; border: 1px solid #00ff88; cursor: pointer; border-radius: 5px; font-size: 0.95em; transition: all 0.2s; }
-    .tab.active { background: #00ff88; color: #0a0a1a; }
-    .tab.locked { background: #333; color: #666; cursor: not-allowed; opacity: 0.6; }
-    #grid-container { max-width: 100%; margin: 0 auto 20px; }
-    .grid { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 4px; width: 100%; }
-    @media (max-width: 768px) { .grid { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; } }
-    .square { aspect-ratio: 1; background: #333; border: 1px solid #555; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
-    @media (max-width: 768px) { .square { font-size: 14px; } }
-    .square:hover { background: #444; box-shadow: 0 0 10px #00ff88; }
-    .square.selected { background: #0066cc; box-shadow: 0 0 20px #0066cc; }
-    .square.revealed { cursor: default; animation: flip 0.6s; }
-    .square.loss { background: #cc0000; color: white; }
-    .square.small { background: #ffaa00; color: black; }
-    .square.big { background: #00ff00; color: black; font-weight: bold; }
-    @keyframes flip { 0% { transform: rotateY(0); } 50% { transform: rotateY(90deg); } 100% { transform: rotateY(0); } }
-    .panel { background: #1a1a2e; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #00ff88; }
-    .remaining { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 15px; justify-content: center; }
-    .stat { text-align: center; padding: 12px; background: #0a0a1a; border-radius: 6px; font-size: 1.05em; flex: 1 1 140px; white-space: normal; }
-    .odds-footer { text-align: center; font-size: 0.95em; color: #88ffcc; margin: 10px 0; }
-    .picks { margin: 10px 0; min-height: 40px; text-align: center; }
-    .pick { display: inline-block; background: #0066cc; padding: 6px 12px; margin: 3px; border-radius: 4px; font-size: 0.9em; }
-    .selected-count { text-align: center; font-size: 1.3em; margin: 10px 0; color: #00ccff; }
-    .randomizer { display: flex; align-items: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; justify-content: center; }
-    .random-input { width: 80px; padding: 10px; font-size: 1.1em; background: #1a1a2e; color: #00ff88; border: 1px solid #00ff88; border-radius: 6px; text-align: center; }
-    .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 15px 0; }
-    button { background: #00ff88; color: #0a0a1a; border: none; padding: 14px 28px; font-size: 1.1em; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 160px; height: 48px; transition: all 0.3s; text-align: center; display: flex; align-items: center; justify-content: center; }
-    button:hover { box-shadow: 0 0 15px #00ff88; transform: scale(1.05); }
-    button:disabled { background: #555; cursor: not-allowed; transform: none; }
-    button#submit { background: #ffaa00; color: #0a0a1a; min-width: 160px; }
-    button#claim { background: #666; color: #ccc; font-size: 0.95em; padding: 8px 16px; min-width: auto; height: auto; }
-    button#claim.enabled { background: #00ff88; color: #0a0a1a; cursor: pointer; }
-    button#admin-refill { background: #ff3366; color: white; font-size: 0.9em; padding: 6px 12px; min-width: auto; display: none; }
-    .status { text-align: center; margin: 10px 0; font-size: 1.1em; color: #ffaa00; min-height: 1.2em; }
-    .user-stats { text-align: center; margin: 15px 0; font-size: 0.9em; color: #88ffcc; background: #0a0a1a; padding: 12px; border-radius: 6px; }
-    .history { max-height: 300px; overflow-y: auto; margin-top: 10px; }
-    .history-item { padding: 10px; border-bottom: 1px solid #333; font-size: 0.9em; }
-    .balance-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
-    .balance { font-size: 2.5em; text-shadow: 0 0 8px #00ff88; }
-    audio { display: none; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tip a Random Grok User · TEST MODE</title>
+<meta name="description" content="Play-money test board: tip a random Grok user, and tippers get a chance to be tipped back 2×.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+<style>
+:root{
+  --bg:#0a0c11;--panel:#131722;--panel2:#1a1f2d;--line:#262d40;--txt:#e9edf6;--mut:#8b94aa;
+  --acc:#7c9cff;--dbl:#20d48a;--big:#ffc23d;--host:#b583ff;--pat:#34425f;--held:#ff9f43;--sel:#3ee0ff;--bad:#ff5d6c;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#1b2340 0%,var(--bg) 55%) fixed;color:var(--txt);
+  font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select{font:inherit;color:var(--txt);background:#0d1018;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+input:focus{outline:2px solid var(--acc);outline-offset:1px}
+a{color:var(--acc)}
+.testbar{position:sticky;top:0;z-index:50;text-align:center;font-weight:800;letter-spacing:.06em;font-size:12px;padding:6px 8px;
+  background:repeating-linear-gradient(45deg,#ffcf3d,#ffcf3d 14px,#ffb81f 14px,#ffb81f 28px);color:#1a1300;text-transform:uppercase}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px 6px;max-width:1280px;margin:0 auto;flex-wrap:wrap}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{font-size:30px;width:48px;height:48px;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,#2a3560,#151a2a);border:1px solid var(--line)}
+h1{font-size:20px;margin:0;letter-spacing:-.01em}
+.tag{margin:2px 0 0;color:var(--mut);font-size:13px}
+.top-actions{display:flex;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel2);padding:9px 14px;border-radius:11px;font-weight:600;transition:.15s}
+.btn:hover{border-color:#3a4562;background:#20263a}
+.btn.pri{background:linear-gradient(135deg,#6f8dff,#9b6dff);border-color:transparent;color:#fff}
+.btn.pri:hover{filter:brightness(1.1)}
+.btn.good{background:linear-gradient(135deg,#1fcf86,#13a56a);border-color:transparent;color:#03140c}
+.btn.warn{background:#2a1a12;border-color:#5a3520;color:#ffb27a}
+.btn.danger{background:#2a1218;border-color:#5a2030;color:#ff8b98}
+.btn.ghost{background:transparent}
+.btn.sm{padding:6px 10px;font-size:12.5px;border-radius:9px}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.chip{border:1px solid var(--line);background:#0f1320;border-radius:999px;padding:7px 12px;font-weight:600}
+.tabs{display:flex;gap:8px;max-width:1280px;margin:8px auto 0;padding:0 20px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 16px;font-weight:700;display:flex;gap:8px;align-items:center}
+.tab small{font-weight:500;color:var(--mut)}
+.tab.on{background:linear-gradient(135deg,#253262,#1b2240);border-color:#4a5ea8}
+.tab.off{opacity:.45;cursor:not-allowed}
+.layout{max-width:1280px;margin:12px auto;padding:0 20px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.card{background:linear-gradient(180deg,var(--panel),#10141e);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.side{display:flex;flex-direction:column;gap:12px}
+.card h3{margin:0 0 8px;font-size:14px;letter-spacing:.02em;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h3 small{color:var(--mut);font-weight:500}
+.mut{color:var(--mut)}
+.board-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;margin-bottom:10px}
+.board-title{font-size:18px;font-weight:800}
+.board-title .ea{font-size:11px;background:#2b2160;border:1px solid #5b48c0;color:#cbbcff;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat{background:#0e121c;border:1px solid var(--line);border-radius:10px;padding:5px 10px;font-size:12px;color:var(--mut)}
+.stat b{color:var(--txt);font-size:13px}
+.progress{height:6px;background:#0e121c;border-radius:6px;overflow:hidden;margin:2px 0 10px;border:1px solid var(--line)}
+.progress>i{display:block;height:100%;background:linear-gradient(90deg,#6f8dff,#20d48a)}
+.grid{display:grid;grid-template-columns:repeat(25,1fr);gap:3px;user-select:none;-webkit-user-select:none;perspective:900px}
+.tile{aspect-ratio:1;border-radius:5px;display:grid;place-items:center;font-size:10px;font-weight:800;position:relative;
+  border:1px solid transparent;transition:background .2s,border-color .2s,transform .12s;overflow:hidden;line-height:1;white-space:nowrap}
+.tile.empty{background:#121725;border-color:#1c2233;color:#3a435c;font-size:7.5px;font-weight:600;cursor:pointer}
+.tile.empty:hover{border-color:var(--sel);color:var(--sel);transform:scale(1.08);z-index:2}
+.tile.sel{background:rgba(62,224,255,.18);border-color:var(--sel);color:var(--sel);cursor:pointer;box-shadow:0 0 0 1px var(--sel) inset}
+.tile.sel::after{content:"✓";font-size:11px}
+.tile.held{background:repeating-linear-gradient(45deg,#3a2810,#3a2810 4px,#56391a 4px,#56391a 8px);border-color:var(--held)}
+.tile.drawing{background:#232b44;border-color:#6f8dff;color:#9fb3ff;animation:pulse 1s infinite}
+.tile.patron{background:var(--pat);color:#b9c6e6;cursor:pointer}
+.tile.double{background:linear-gradient(135deg,#1fd58a,#0f9a62);color:#04150d;cursor:pointer}
+.tile.big{background:linear-gradient(135deg,#ffe07a,#ffab1f);color:#3a2500;cursor:pointer;box-shadow:0 0 10px rgba(255,194,61,.6)}
+.tile.host{background:linear-gradient(135deg,#c9a0ff,#8a55e6);color:#1c0a3a;cursor:pointer}
+.tile.mine{box-shadow:0 0 0 2px #fff inset}
+.tile.mine.big{box-shadow:0 0 0 2px #fff inset,0 0 12px rgba(255,194,61,.8)}
+.tile.ghost{background:transparent!important;border:1px dashed;opacity:.85;box-shadow:none}
+.tile.ghost.double{border-color:var(--dbl);color:var(--dbl)}
+.tile.ghost.big{border-color:var(--big);color:var(--big)}
+.tile.ghost.host{border-color:var(--host);color:var(--host)}
+.tile.flip-out{animation:flipOut .26s ease-in forwards}
+.tile.flip-in{animation:flipIn .3s ease-out forwards}
+.tile.pop{animation:pop .5s ease-out}
+@keyframes flipOut{to{transform:rotateY(90deg) scale(1.15)}}
+@keyframes flipIn{from{transform:rotateY(-90deg) scale(1.15)}to{transform:rotateY(0) scale(1)}}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.5);z-index:3}100%{transform:scale(1)}}
+@keyframes pulse{50%{filter:brightness(1.4)}}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;color:var(--mut);font-size:12px}
+.lg{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.lg.double{background:var(--dbl)}.lg.big{background:var(--big)}.lg.host{background:var(--host)}.lg.patron{background:var(--pat)}
+.lg.mine{background:#222;box-shadow:0 0 0 2px #fff inset}.lg.sel{background:rgba(62,224,255,.25);box-shadow:0 0 0 1px var(--sel) inset}
+.selbar{margin-top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:#0e121c;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.selbar .info{font-size:13px}
+.selbar .info b{font-size:15px}
+.selbar .acts{display:flex;gap:8px;flex-wrap:wrap}
+.pot-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:#0e121c;border:1px solid var(--line);margin-bottom:6px}
+.pot-row .n{font-size:20px;font-weight:800;min-width:42px;text-align:right}
+.pot-row.double .n{color:var(--dbl)}.pot-row.big .n{color:var(--big)}
+.pot-row .l{font-size:13px}
+.pot-row .l small{display:block;color:var(--mut);font-size:11.5px}
+.lurk{color:var(--big);font-weight:700}
+.wal{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.wal div{background:#0e121c;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.wal small{display:block;color:var(--mut);font-size:11.5px}
+.wal b{font-size:20px}
+.wal .u b{color:var(--dbl)}
+.wal .p b{color:#ffd27a}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.list{list-style:none;margin:8px 0 0;padding:0;font-size:12.5px;max-height:190px;overflow:auto}
+.list li{padding:5px 0;border-bottom:1px dashed #20263a;display:flex;justify-content:space-between;gap:8px}
+.list li:last-child{border-bottom:0}
+.list .amt{font-weight:700;white-space:nowrap}
+.list .pos{color:var(--dbl)}.list .neg{color:#ff9aa5}
+.pill{display:inline-block;font-size:11px;border-radius:999px;padding:1px 8px;border:1px solid var(--line);color:var(--mut)}
+.pill.ok{color:var(--dbl);border-color:#1d5a40}
+.pill.wait{color:#ffd27a;border-color:#5a4a20}
+.dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.dot.double{background:var(--dbl)}.dot.big{background:var(--big)}.dot.host{background:var(--host)}.dot.patron{background:var(--pat)}
+.foot{max-width:1280px;margin:10px auto 90px;padding:0 20px;color:var(--mut);font-size:12px}
+/* modal */
+.modal-root{position:fixed;inset:0;z-index:80;background:rgba(4,6,10,.72);backdrop-filter:blur(4px);display:grid;place-items:center;padding:16px}
+.modal-root[hidden]{display:none}
+.modal{width:min(560px,100%);max-height:calc(100vh - 40px);overflow:auto;background:linear-gradient(180deg,#171c2a,#10141e);border:1px solid #2e3650;border-radius:18px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.modal.wide{width:min(820px,100%)}
+.modal h2{margin:0 0 6px;font-size:19px}
+.modal .sub{color:var(--mut);margin:0 0 14px}
+.modal .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:16px}
+.code{font:800 26px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;background:#0b0e16;border:1px dashed #4a5ea8;color:#bcd0ff;border-radius:12px;padding:12px 16px;display:inline-block}
+.steps{margin:12px 0;padding-left:20px}
+.steps li{margin:6px 0}
+.timer{font:700 14px ui-monospace,monospace;color:var(--held)}
+.note{font-size:12px;color:var(--mut);background:#0e121c;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:10px}
+.note.test{border-color:#5a4a20;color:#ffd27a}
+.err{color:var(--bad);font-size:12.5px;min-height:18px;margin-top:6px}
+.choice{display:flex;gap:10px;align-items:flex-start;background:#0e121c;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;cursor:pointer}
+.choice input[type=radio]{margin-top:4px}
+.choice.on{border-color:#4a5ea8}
+.choice .f{flex:1}
+.choice input[type=text]{width:100%;margin-top:6px}
+.res{list-style:none;padding:0;margin:10px 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.res li{background:#0e121c;border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:13px}
+.res li b{display:block}
+.res li.double{border-color:#1d5a40}.res li.big{border-color:#7a5a10;background:#1d1708}.res li.host{border-color:#4a2f7a}
+.share{background:#0b0e16;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px;margin:10px 0}
+.kv dt{color:var(--mut)}
+.kv dd{margin:0;font-weight:600}
+.mini{display:grid;grid-template-columns:repeat(25,1fr);gap:2px;margin-top:10px}
+.mini .tile{font-size:0;border-radius:3px}
+.mini .tile.empty{font-size:0}
+.big-burst{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
+.big-burst span{position:absolute;font-size:22px;animation:fall 1.6s ease-out forwards}
+@keyframes fall{from{transform:translate(0,0) rotate(0);opacity:1}to{transform:translate(var(--dx),var(--dy)) rotate(540deg);opacity:0}}
+/* drawer */
+.drawer{position:fixed;inset:0;z-index:70;background:rgba(4,6,10,.6)}
+.drawer[hidden]{display:none}
+.drawer-inner{position:absolute;right:0;top:0;bottom:0;width:min(460px,100%);background:#11151f;border-left:1px solid var(--line);display:flex;flex-direction:column;animation:slide .2s ease-out}
+@keyframes slide{from{transform:translateX(40px);opacity:.4}}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.drawer-head h2{margin:0;font-size:17px}
+.drawer-body{padding:6px 18px 30px;overflow:auto;font-size:13.5px}
+.drawer-body h4{margin:16px 0 6px;font-size:13.5px;color:#bcd0ff}
+.drawer-body ul{padding-left:18px;margin:4px 0}
+.drawer-body li{margin:3px 0}
+.drawer-body table{width:100%;border-collapse:collapse;font-size:12.5px}
+.drawer-body td,.drawer-body th{border-bottom:1px solid var(--line);padding:5px 4px;text-align:left}
+.x{background:none;border:0;font-size:18px;color:var(--mut)}
+/* dev */
+.devtoggle{position:fixed;right:16px;bottom:16px;z-index:60;background:#2a1018;border:1px solid #ff5d6c;color:#ff8b98;font:800 12px ui-monospace,monospace;letter-spacing:.1em;padding:10px 14px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.devtoggle.on{background:#ff5d6c;color:#200}
+.devpanel{position:fixed;right:16px;bottom:64px;z-index:60;width:min(340px,calc(100vw - 32px));max-height:calc(100vh - 140px);overflow:auto;background:#160c11;border:1px solid #6a2532;border-radius:14px;padding:12px;font-size:12.5px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.devpanel[hidden]{display:none}
+.devpanel h4{margin:0 0 8px;font:800 12px ui-monospace,monospace;letter-spacing:.1em;color:#ff8b98}
+.devpanel .grp{border-top:1px dashed #4a1e28;padding:9px 0}
+.devpanel .grp:first-of-type{border-top:0}
+.devpanel label{color:#d9a6ae;display:block;margin-bottom:5px}
+.devpanel input{width:80px;padding:5px 8px;background:#0e0709;border-color:#4a1e28}
+.devpanel table{width:100%;border-collapse:collapse;font:12px ui-monospace,monospace}
+.devpanel td{padding:3px 4px;border-bottom:1px solid #2e141a}
+.toasts{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:95;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,460px)}
+.toast{background:#1d2335;border:1px solid #3a4562;border-radius:12px;padding:9px 14px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.45);animation:tin .2s ease-out;text-align:center}
+@keyframes tin{from{transform:translateY(10px);opacity:0}}
+@media (max-width:980px){.layout{grid-template-columns:1fr}}
+@media (max-width:640px){
+  .grid,.mini{grid-template-columns:repeat(20,1fr);gap:2px}
+  .tile{font-size:8px;border-radius:3px}
+  .tile.empty{color:transparent}
+  .top{padding:12px 14px 4px}.tabs,.layout,.foot{padding:0 12px}
+  h1{font-size:17px}
+  .card{padding:12px}
+  .devtoggle{bottom:12px;right:12px}
+}
+a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
+
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>🚀 Creds Galactic Game - Beta 🚀</h1>
-    <p class="intro">100 Free Creds Daily! Pick numbers, reveal wins. Games close at 420 of 500 played.</p>
+<div class="testbar" role="status">TEST MODE — play money, no real tips</div>
 
-    <div class="tabs">
-      <div class="tab active" data-board="basic1">Basic Game #1</div>
-      <div class="tab locked" data-board="basic2" title="Unlock by playing Basic #1">Basic Game #2</div>
-      <div class="tab locked" data-board="basic3" title="Unlock after #1 closes">Basic Game #3</div>
-      <div class="tab" data-board="premium1">Premium Game #1</div>
-      <div class="tab locked" data-board="premium2" title="Unlock by playing Premium #1">Premium Game #2</div>
-      <div class="tab locked" data-board="premium3" title="Unlock after #1 closes">Premium Game #3</div>
-    </div>
-
-    <div id="game" class="panel">
-      <div class="balance-line">
-        <div class="balance" id="balance">Balance: 100.0 Creds</div>
-        <div>
-          <button id="claim" class="disabled">Claim Daily Creds</button>
-          <button id="admin-refill">Admin: Refill to 420</button>
-        </div>
-      </div>
-      <div class="remaining">
-        <div class="stat">🟢 Big Wins Remaining: <span id="rem-big">165</span></div>
-        <div class="stat">🟡 Small Wins Remaining: <span id="rem-small">100</span></div>
-        <div class="stat">🔴 Losses Remaining: <span id="rem-loss">235</span></div>
-        <div class="stat">Played: <span id="played">0</span>/420</div>
-      </div>
-      <p class="odds-footer">Total Odds (500 squares): Big Win 33% • Small Win 20% • Loss 47%</p>
-      <div id="picks" class="picks"></div>
-      <div class="selected-count" id="selected-count">Selected: 0</div>
-      <div id="reveal-status" class="status"></div>
-      <div class="actions">
-        <div class="randomizer">
-          <input id="random-input" type="number" min="1" value="10" class="random-input" placeholder="Creds">
-          <button id="randomize">Randomize</button>
-        </div>
-        <button id="clear">Clear Picks</button>
-        <button id="submit" disabled>Reveal Picks!</button>
-      </div>
-      <div class="user-stats">
-        Your Results: Big Wins <span id="user-big">0</span> • Small Wins <span id="user-small">0</span> • Losses <span id="user-loss">0</span><br>
-        Max per Board: 100 Choices • Remaining for this Board: <span id="rem-cred-board">100</span>
-      </div>
-    </div>
-
-    <div id="grid-container">
-      <div id="grid" class="grid"></div>
-    </div>
-
-    <div class="panel">
-      <h3>History</h3>
-      <div id="history" class="history"></div>
-    </div>
-
-    <div id="top-winners" class="panel" style="display: none;">
-      <h3>Biggest Winners This Game</h3>
-      <div id="winners-list"></div>
+<header class="top">
+  <div class="brand">
+    <div class="logo">🎲</div>
+    <div>
+      <h1>Tip a Random Grok User</h1>
+      <p class="tag">Tip a random Grok user, and tippers get a chance to be tipped back 2×.</p>
     </div>
   </div>
+  <div class="top-actions">
+    <button class="chip" id="meChip" title="Change display name">…</button>
+    <button class="btn ghost" id="rulesBtn">Rules</button>
+  </div>
+</header>
 
-  <!-- Sounds -->
-  <audio id="sound-loss" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-game-buzzer-2216.mp3"></audio>
-  <audio id="sound-small" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-rocket-launch-2029.mp3"></audio>
-  <audio id="sound-big" preload="auto" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-engine-1021.mp3"></audio>
+<nav class="tabs" id="tabs"></nav>
 
-  <script>
-    // CONFIG & STATE
-    const CONFIG = {
-      total: 500,
-      closeAt: 420,
-      loss: 235, small: 100, big: 165,
-      payouts: { loss: 0.5, small: 1.1, big: 1.5 }
-    };
-    const PREMIUM_MULT = 5;
-    const DAILY_CRED_LIMIT_PER_BOARD = 100;
-    const MAX_RANDOMS_PER_DAY = 3;
+<main class="layout">
+  <section class="boardcard card">
+    <div class="board-head" id="boardHead"></div>
+    <div class="grid" id="grid" aria-label="Board squares"></div>
+    <div class="legend">
+      <span><i class="lg double"></i>Double Up</span>
+      <span><i class="lg big"></i>Big Send</span>
+      <span><i class="lg host"></i>Host Tip</span>
+      <span><i class="lg patron"></i>Patron</span>
+      <span><i class="lg mine"></i>Your tile</span>
+      <span><i class="lg sel"></i>Selected</span>
+    </div>
+    <div class="selbar" id="selbar"></div>
+  </section>
 
-    let currentBoard = 'basic1';
-    let board = [], revealed = new Set(), selected = new Set();
-    let balance = 100;
-    let username = localStorage.getItem('username') || '';
-    let gameId = 0, played = 0;
-    let history = JSON.parse(localStorage.getItem('history') || '[]');
-    let dailyClaimed = localStorage.getItem('dailyClaimed') || '';
-    let dailySpent = JSON.parse(localStorage.getItem('dailySpent') || '{}');
-    let randomsToday = parseInt(localStorage.getItem('randomsToday') || '0');
-    let randomDate = localStorage.getItem('randomDate') || new Date().toDateString();
-    let unlockedBoards = JSON.parse(localStorage.getItem('unlockedBoards') || '{"basic1":true,"premium1":true}');
-    let userResults = JSON.parse(localStorage.getItem('userResults') || '{"big":0,"small":0,"loss":0}');
+  <aside class="side">
+    <div class="card" id="potCard"></div>
+    <div class="card" id="walletCard"></div>
+    <div class="card" id="nextCard"></div>
+    <div class="card" id="feedCard"></div>
+    <div class="card" id="archiveCard"></div>
+  </aside>
+</main>
 
-    const el = {
-      balance: document.getElementById('balance'),
-      remBig: document.getElementById('rem-big'),
-      remSmall: document.getElementById('rem-small'),
-      remLoss: document.getElementById('rem-loss'),
-      played: document.getElementById('played'),
-      picks: document.getElementById('picks'),
-      selectedCount: document.getElementById('selected-count'),
-      randomInput: document.getElementById('random-input'),
-      randomize: document.getElementById('randomize'),
-      submit: document.getElementById('submit'),
-      clear: document.getElementById('clear'),
-      claim: document.getElementById('claim'),
-      status: document.getElementById('reveal-status'),
-      history: document.getElementById('history'),
-      winners: document.getElementById('winners-list'),
-      grid: document.getElementById('grid'),
-      topWinners: document.getElementById('top-winners'),
-      remCredBoard: document.getElementById('rem-cred-board'),
-      userBig: document.getElementById('user-big'),
-      userSmall: document.getElementById('user-small'),
-      userLoss: document.getElementById('user-loss'),
-      adminRefill: document.getElementById('admin-refill')
-    };
+<footer class="foot">
+  Test build for design review. No payments are sent or received; every amount here is play money.
+  Rules draft v0.3 · pending legal review.
+</footer>
 
-    window.onload = () => {
-      const now = new Date().toDateString();
-      if (randomDate !== now) {
-        randomsToday = 0;
-        randomDate = now;
-        localStorage.setItem('randomsToday', '0');
-        localStorage.setItem('randomDate', now);
-      }
-      updateRandomButton();
-      updateTabs();
+<div class="modal-root" id="modalRoot" hidden></div>
 
-      if (!username) {
-        setTimeout(() => {
-          username = prompt('Enter your username (e.g., @DirkMannis):')?.trim() || 'Player';
-          localStorage.setItem('username', username);
-          newGame();
-        }, 800);
-      } else {
-        newGame();
-      }
-      updateBalance();
-      loadHistory();
-      updateUserStats();
+<aside class="drawer" id="drawer" hidden>
+  <div class="drawer-inner">
+    <div class="drawer-head"><h2>Rules (summary)</h2><button class="x" data-close-drawer aria-label="Close">✕</button></div>
+    <div class="drawer-body" id="rulesBody"></div>
+  </div>
+</aside>
 
-      // Show admin refill button only for @DirkMannis
-      if (username === '@DirkMannis') {
-        el.adminRefill.style.display = 'inline-block';
-      }
-    };
+<button class="devtoggle" id="devToggle">DEV</button>
+<aside class="devpanel" id="devPanel" hidden></aside>
 
-    // Admin refill button (only visible for @DirkMannis)
-    el.adminRefill.onclick = () => {
-      if (username !== '@DirkMannis') return;
-      balance = 420;
-      updateBalance();
-      el.status.textContent = 'Admin refill: Balance set to 420 Creds';
-      setTimeout(() => el.status.textContent = '', 3000);
-    };
+<div class="toasts" id="toasts"></div>
+<script>
+(() => {
+'use strict';
+/* ===== Constants ===== */
+const KEY = 'grokTipBoard.v1';
+const GRID = 500, CLOSE_AT = 400, MILESTONE = 20, BIG_UNLOCK = 100;
+const BAG0 = { double: 192, big: 2, host: 1, patron: 205 };
+const DAY = 864e5, STALL_MS = 5 * DAY, HOLD_MS = 15 * 60e3, CASHOUT_MS = 16 * 3600e3;
+const STAKES = [{ v: 5, live: true, note: 'main' }, { v: 20, live: true, note: 'open' }, { v: 100, live: false, note: 'coming soon' }];
+const PRIZE = {
+  double: { label: 'Double Up', icon: '2×' },
+  big: { label: 'Big Send', icon: '★' },
+  host: { label: 'Host Tip', icon: 'H' },
+  patron: { label: 'Patron', icon: '' }
+};
+const ADJ = ['tipsy','cosmic','lucky','salty','quantum','sleepy','turbo','neon','spicy','chill','rogue','mellow','hyper','pixel','feral','dapper','zesty','glitchy','sunny','midnight'];
+const NOUN = ['otter','gremlin','falcon','moose','taco','wizard','panda','comet','badger','noodle','yeti','llama','kraken','goblin','walrus','ferret','pickle','raccoon','nebula','biscuit'];
+const BOTS = (() => { const out = []; let k = 0;
+  for (let i = 0; i < ADJ.length; i++) for (let j = 0; j < 4; j++) {
+    const noun = NOUN[(i * 7 + j * 3) % NOUN.length]; k++;
+    const base = (k % 3 === 0) ? `${ADJ[i]}${noun[0].toUpperCase()}${noun.slice(1)}` : `${ADJ[i]}_${noun}${k % 5 === 0 ? k : ''}`;
+    out.push(k % 4 === 0 ? base : '@' + base);
+  } return out; })();
+const BLOCK = ['fuck','shit','cunt','nigg','fag','retard','rape','nazi','hitler','porn','cock','dick','pussy','whore','slut','kys','bitch','penis','vagina','cum','jizz','anal','molest','pedo','fck','fuk','fack','phuck','fvck','fcuk','sh1t','shyt','azz','arse','twat','wank','nlgg','kkk'];
+const RESERVED_SUB = ['official','admin','support','verified','moderator','staff','helpdesk','xmoney','cashapp'];
+const RESERVED_EXACT = ['grok','xai','x','elon','elonmusk','twitter','host','operator','system','mod','team','grokbot','dirkmannis','tipboard'];
 
-    // Override daily limit for admin
-    function canSpendMore(credAmount) {
-      if (username === '@DirkMannis') return true; // unlimited choices
-      const today = new Date().toDateString();
-      if (!dailySpent[today]) dailySpent[today] = {};
-      const spent = dailySpent[today][currentBoard] || 0;
-      return spent + credAmount <= DAILY_CRED_LIMIT_PER_BOARD;
-    }
+/* ===== State ===== */
+let S;
+const UI = { sel: new Set(), revealing: new Set(), animating: false, summaryQ: [], deferred: [], modal: null, dripT: 0 };
 
-    function updateTabs() {
-      document.querySelectorAll('.tab').forEach(tab => {
-        const boardId = tab.dataset.board;
-        if (unlockedBoards[boardId]) {
-          tab.classList.remove('locked');
-          tab.title = '';
-        } else {
-          tab.classList.add('locked');
-          tab.title = 'Unlock by playing previous board';
-        }
-        if (boardId === currentBoard) tab.classList.add('active');
-        else tab.classList.remove('active');
-      });
-    }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return s && s.v === 1 ? s : null; } catch { return null; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { console.warn('save failed', e); } }
+function fresh() {
+  S = { v: 1, seed: (Math.random() * 4294967296) >>> 0, clock: 0, wid: 0, lid: 0,
+    me: { mode: 'x', x: '', game: '', boardsPlayed: 0, onboarded: false, ea: {} },
+    wallet: { buckets: {}, log: [], cashouts: [] },
+    boards: {}, seq: { 5: 0, 20: 0 }, carry: { 5: 0, 20: 0 }, archive: [], active: 5, hold: null,
+    dev: { drip: false, open: false, bag: false } };
+  openBoard(5); openBoard(20);
+  return S;
+}
+const now = () => Date.now() + S.clock;
+function rnd() { let t = (S.seed = (S.seed + 0x6D2B79F5) >>> 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+const r2 = v => Math.round(v * 100) / 100;
+const fmt = v => '$' + (Math.abs(v % 1) > 0.001 ? (+v).toFixed(2) : String(Math.round(v)));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cur = () => S.boards[S.active];
+const meName = () => S.me.mode === 'x' ? '@' + S.me.x : S.me.game;
+const capFor = o => o === 'me' ? (S.me.boardsPlayed >= 2 ? 40 : 20) : 20;
+const sumBy = (arr, f) => arr.reduce((a, x) => a + f(x), 0);
+function dur(ms) { ms = Math.max(0, ms); const d = Math.floor(ms / DAY), h = Math.floor(ms % DAY / 36e5), m = Math.floor(ms % 36e5 / 6e4), s = Math.floor(ms % 6e4 / 1e3);
+  return d ? `${d}d ${h}h ${m}m` : h ? `${h}h ${m}m` : `${m}m ${String(s).padStart(2, '0')}s`; }
+function code() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 3; i++) c += A[Math.floor(Math.random() * A.length)]; return 'GROK-' + c; }
 
-    function unlockNextBoard() {
-      const type = currentBoard.startsWith('basic') ? 'basic' : 'premium';
-      const num = parseInt(currentBoard.replace(/\D/g, '')) || 1;
-      if (num >= 3) return;
-      const nextBoard = `${type}${num + 1}`;
-      if (!unlockedBoards[nextBoard]) {
-        unlockedBoards[nextBoard] = true;
-        localStorage.setItem('unlockedBoards', JSON.stringify(unlockedBoards));
-        updateTabs();
-      }
-    }
+/* ===== Board engine ===== */
+function openBoard(stake) {
+  const n = ++S.seq[stake];
+  S.boards[stake] = { id: `${stake}-${n}`, stake, n, openedAt: now(), sq: Array(GRID).fill(null), bag: { ...BAG0 },
+    plays: 0, wins: [], counts: {}, carryIn: S.carry[stake] || 0, carryUsed: false, hostDrawn: false, seeded: 0, closed: false,
+    ea: S.me.ea[stake] === n };
+  S.carry[stake] = 0;
+}
+function draw(b) {
+  const tot = b.bag.double + b.bag.big + b.bag.host + b.bag.patron;
+  let r = Math.floor(rnd() * tot);
+  for (const k of ['double', 'big', 'host', 'patron']) { if (r < b.bag[k]) return k; r -= b.bag[k]; }
+  return 'patron';
+}
+function play(b, idx, o, name, replay) {
+  const p = draw(b); b.bag[p]--; b.plays++;
+  b.sq[idx] = { o, n: name, p, k: b.plays, r: replay ? 1 : 0 };
+  b.counts[o] = (b.counts[o] || 0) + 1;
+  if (p === 'double') b.wins.push({ id: ++S.wid, o, n: name, i: idx, t: 'double', amt: 2 * b.stake, un: 0, ev: null, k: b.plays });
+  else if (p === 'big') { const amt = r2(5 * b.stake + (b.carryUsed ? 0 : b.carryIn)); b.carryUsed = true;
+    b.wins.push({ id: ++S.wid, o, n: name, i: idx, t: 'big', amt, un: 0, ev: null, k: b.plays }); }
+  else if (p === 'host') b.hostDrawn = true;
+  if (b.plays % MILESTONE === 0) milestone(b);
+  return p;
+}
+function credit(b, a, note) {
+  S.wallet.buckets[b.id] = r2((S.wallet.buckets[b.id] || 0) + a);
+  logW(note, a);
+}
+function logW(note, amt) { S.wallet.log.unshift({ id: ++S.lid, at: now(), note, amt }); S.wallet.log.length = Math.min(S.wallet.log.length, 80); }
+function milestone(b) {
+  const m = b.plays;
+  let budget = b.plays * b.stake + b.carryIn - sumBy(b.wins, w => w.un);
+  let mine = 0;
+  const give = (w, a) => { a = r2(Math.max(0, Math.min(a, w.amt - w.un))); if (!a) return; w.un = r2(w.un + a); budget -= a;
+    if (w.o === 'me') { credit(b, a, `Unlocked at ${m} plays · ${PRIZE[w.t].label} #${w.i + 1} · ${label(b)}`); mine += a; } };
+  const dbl = b.wins.filter(w => w.t === 'double').sort((x, y) => x.k - y.k);
+  // 1) even-up every Double Up drawn since the last milestone
+  for (const w of dbl) if (w.ev === null) { if (budget <= 0) break; give(w, Math.min(b.stake, budget)); w.ev = m; }
+  // 2) profit tranche on wins evened at an earlier milestone, oldest first, funded by tips already in
+  for (const w of dbl) if (w.ev !== null && w.ev < m && w.un < w.amt) { if (budget <= 0) break; give(w, Math.min(w.amt - w.un, budget)); }
+  // 3) Big Sends unlock from 100 plays (host seeds any shortfall)
+  if (m >= BIG_UNLOCK) for (const w of b.wins) if (w.t === 'big' && w.un < w.amt) {
+    const need = w.amt - w.un; b.seeded = r2(b.seeded + Math.max(0, need - Math.max(0, budget))); give(w, need); w.ev = m; }
+  if (mine) toast(`🔓 ${m}-play unlock on ${label(b)}: +${fmt(mine)} to your wallet`);
+}
+const label = b => `$${b.stake} Board #${b.n}`;
 
-    function updateRandomButton() {
-      el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
-      el.randomize.textContent = randomsToday >= MAX_RANDOMS_PER_DAY ? 'Randomize (Limit Reached)' : 'Randomize';
-    }
+function closeBoard(stake, reason) {
+  const b = S.boards[stake]; if (!b || b.closed) return;
+  if (S.hold && S.hold.stake == stake) { S.hold = null; UI.sel.clear(); closeModal('pay'); toast('Your hold was released — the board closed.'); }
+  if (S.active == stake) UI.sel.clear();
+  b.closed = true; b.closedAt = now(); b.reason = reason;
+  const M = b.plays * b.stake + b.carryIn;
+  const mineBefore = sumBy(b.wins.filter(w => w.o === 'me'), w => w.un);
+  const bigs = b.wins.filter(w => w.t === 'big'), dbl = b.wins.filter(w => w.t === 'double').sort((x, y) => x.k - y.k);
+  for (const w of bigs) w.un = w.amt;
+  const bigPaid = sumBy(bigs, w => w.amt);
+  const U = sumBy(dbl, w => w.un), R = sumBy(dbl, w => w.amt - w.un);
+  const pool = M - bigPaid - U;
+  const scale = R > 0 ? Math.max(0, Math.min(1, pool / R)) : 1;
+  for (const w of dbl) { w.fin = r2(w.un + (w.amt - w.un) * scale); w.un = w.fin; }
+  const dblPaid = r2(sumBy(dbl, w => w.un));
+  const hostPaid = b.hostDrawn ? r2(Math.max(0, Math.min(5 * b.stake, M - bigPaid - dblPaid))) : 0;
+  const seeded = r2(Math.max(0, bigPaid + dblPaid + hostPaid - M));
+  const leftover = r2(Math.max(0, M - bigPaid - dblPaid - hostPaid));
+  const undrawnBig = b.bag.big;
+  const carryOut = r2(leftover + undrawnBig * 5 * b.stake);
+  // Unselected prizes: leftover prize tickets scattered on random unchosen squares (display only)
+  const tickets = []; for (const k of ['double', 'big', 'host']) for (let i = 0; i < b.bag[k]; i++) tickets.push(k);
+  const empties = []; b.sq.forEach((s, i) => { if (!s) empties.push(i); });
+  for (let i = empties.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [empties[i], empties[j]] = [empties[j], empties[i]]; }
+  const unsel = tickets.map((p, i) => ({ i: empties[i], p })).filter(x => x.i !== undefined);
+  // my wallet: credit what closed now, then auto-cash this board's bucket
+  const mineAfter = sumBy(b.wins.filter(w => w.o === 'me'), w => w.un);
+  if (mineAfter - mineBefore > 0.001) credit(b, r2(mineAfter - mineBefore), `Settled at close · ${label(b)}${scale < 1 ? ` (Double Ups scaled ${Math.round(scale * 100)}%)` : ''}`);
+  const bucket = S.wallet.buckets[b.id] || 0;
+  if (bucket > 0) { S.wallet.cashouts.unshift({ id: ++S.lid, at: now(), amt: bucket, note: `Auto cash-out · ${label(b)}` }); logW(`Auto cash-out at close · ${label(b)}`, -bucket); delete S.wallet.buckets[b.id]; }
+  const myCount = b.counts.me || 0;
+  if (myCount > 0) S.me.boardsPlayed++;
+  if (myCount >= 10) S.me.ea[stake] = b.n + 1;
+  const myWins = b.wins.filter(w => w.o === 'me');
+  const rec = { id: b.id, stake, n: b.n, reason, openedAt: b.openedAt, closedAt: b.closedAt, plays: b.plays, carryIn: b.carryIn,
+    sq: b.sq, unsel,
+    pay: { M, dblCount: dbl.length, dblPaid, scale, bigs: bigs.map(w => ({ n: w.n, amt: w.amt, i: w.i, me: w.o === 'me' })), hostDrawn: b.hostDrawn, hostPaid, seeded, carryOut, leftover, undrawnBig },
+    mine: { count: myCount, dbl: myWins.filter(w => w.t === 'double').length, big: myWins.filter(w => w.t === 'big').length,
+      host: b.sq.some(s => s && s.o === 'me' && s.p === 'host'), won: r2(sumBy(myWins, w => w.un)), cashed: bucket, ea: myCount >= 10 } };
+  S.archive.unshift(rec); if (S.archive.length > 25) S.archive.length = 25;
+  S.carry[stake] = carryOut;
+  openBoard(stake);
+  UI.summaryQ.push(rec);
+  save();
+}
 
-    el.randomize.onclick = () => {
-      if (randomsToday >= MAX_RANDOMS_PER_DAY) {
-        el.status.textContent = 'Randomize limit reached today!';
-        return;
-      }
+/* ===== Wallet ===== */
+const unlocked = () => r2(sumBy(Object.values(S.wallet.buckets), v => v));
+function pendingMine() { let p = 0; for (const b of Object.values(S.boards)) for (const w of b.wins) if (w.o === 'me') p += w.amt - w.un; return r2(p); }
+function spend(amt) { let left = amt; for (const k of Object.keys(S.wallet.buckets)) { const t = Math.min(left, S.wallet.buckets[k]); S.wallet.buckets[k] = r2(S.wallet.buckets[k] - t); left = r2(left - t); if (S.wallet.buckets[k] <= 0) delete S.wallet.buckets[k]; if (left <= 0) break; } }
+function cashOut() { const a = unlocked(); if (a <= 0) return; S.wallet.buckets = {}; S.wallet.cashouts.unshift({ id: ++S.lid, at: now(), amt: a, note: 'Cash-out request' }); logW('Cash-out requested (sent within 16 h)', -a); save(); renderAll(); toast(`💸 Cash-out of ${fmt(a)} requested — sent within 16 hours (simulated)`); }
 
-      const credAmount = parseInt(el.randomInput.value) || 0;
-      if (credAmount <= 0 || credAmount > balance || !canSpendMore(credAmount)) {
-        el.status.textContent = 'Not enough balance or daily limit reached!';
-        return;
-      }
+/* ===== Bots ===== */
+function pickBot(b) { for (let t = 0; t < 60; t++) { const n = BOTS[Math.floor(rnd() * BOTS.length)]; if ((b.counts['bot:' + n] || 0) < 20) return n; } return BOTS.find(n => (b.counts['bot:' + n] || 0) < 20); }
+function botPlays(stake, n) {
+  const b = S.boards[stake]; let done = 0;
+  const held = new Set(S.hold && S.hold.stake == stake ? S.hold.squares : []);
+  for (let j = 0; j < n; j++) {
+    if (b.closed || b.plays >= CLOSE_AT) break;
+    const empt = []; for (let i = 0; i < GRID; i++) if (!b.sq[i] && !held.has(i) && !(S.active == stake && UI.sel.has(i))) empt.push(i);
+    if (!empt.length) break;
+    const name = pickBot(b); if (!name) break;
+    play(b, empt[Math.floor(rnd() * empt.length)], 'bot:' + name, name, false); done++;
+  }
+  if (b.plays >= CLOSE_AT) closeBoard(stake, 'full');
+  save(); renderAll(); return done;
+}
 
-      randomsToday++;
-      localStorage.setItem('randomsToday', randomsToday);
-      updateRandomButton();
+/* ===== Display-name filter ===== */
+function norm(s) { return s.toLowerCase().replace(/^@/, '').replace(/[0]/g, 'o').replace(/[1!|]/g, 'i').replace(/l/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't').replace(/8/g, 'b').replace(/[$]/g, 's').replace(/[_.\-\s]/g, ''); }
+function checkName(raw, mode) {
+  const s = raw.trim().replace(/^@/, '');
+  if (mode === 'x') { if (!/^[A-Za-z0-9_]{1,15}$/.test(s)) return 'X handles are 1–15 letters, numbers or _.'; }
+  else if (!/^[A-Za-z0-9_]{3,15}$/.test(s)) return 'In-game handles are 3–15 letters, numbers or _.';
+  const n = norm(s), plain = s.toLowerCase().replace(/[_]/g, '');
+  if (BLOCK.some(w => n.includes(norm(w)) || plain.includes(w))) return 'That name didn’t pass the filter. Try another.';
+  if (mode === 'game') {
+    if (RESERVED_SUB.some(w => n.includes(norm(w)))) return 'Names can’t suggest staff or official accounts.';
+    if (RESERVED_EXACT.some(w => n === norm(w))) return 'That name is reserved (too close to a real account or the host).';
+    if (BOTS.some(bn => norm(bn) === n)) return 'Too close to an existing player’s name.';
+  }
+  return '';
+}
 
-      selected.forEach(i => toggleSquare(i));
+/* ===== Toasts ===== */
+function toast(msg) { if (UI.animating) { UI.deferred.push(msg); return; }
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; $('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 4200); }
+function flushToasts() { const d = UI.deferred.splice(0); d.forEach(toast); }
 
-      const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-      const numSquares = Math.floor(credAmount / cost);
-      const available = [...Array(CONFIG.total).keys()].filter(i => !revealed.has(i) && !selected.has(i));
+/* ===== Rendering ===== */
+let tiles = [];
+function buildGrid() { const g = $('grid'); g.innerHTML = ''; tiles = [];
+  for (let i = 0; i < GRID; i++) { const d = document.createElement('div'); d.dataset.i = i; g.appendChild(d); tiles.push(d); } }
+function tileHTML(b, i, opts = {}) {
+  const s = b.sq[i]; let cls = 'tile', txt = '', title = `#${i + 1}`;
+  const held = S.hold && S.hold.stake == b.stake && S.hold.squares.includes(i);
+  if (!opts.archive && UI.revealing.has(i)) { cls += ' drawing mine'; txt = '?'; title += ' · drawing…'; }
+  else if (s) { cls += ` ${s.p}${s.o === 'me' ? ' mine' : ''}`; txt = s.p === 'patron' ? (s.n.replace(/^@/, '')[0] || '').toUpperCase() : PRIZE[s.p].icon; title += ` · ${s.n} · ${PRIZE[s.p].label}${s.r ? ' (replay)' : ''}`; }
+  else if (opts.unsel && opts.unsel[i]) { const p = opts.unsel[i]; cls += ` ghost ${p}`; txt = PRIZE[p].icon; title += ` · Unselected ${PRIZE[p].label} (display only)`; }
+  else if (!opts.archive && held) { cls += ' held'; title += ' · held for you'; }
+  else if (!opts.archive && UI.sel.has(i)) { cls += ' sel'; title += ' · selected'; }
+  else { cls += ' empty'; txt = opts.archive ? '' : String(i + 1); }
+  return { cls, txt, title };
+}
+function updateTile(i) { const b = cur(); const t = tileHTML(b, i); const el = tiles[i]; el.className = t.cls; el.textContent = t.txt; el.title = t.title; }
+function renderGrid() { for (let i = 0; i < GRID; i++) updateTile(i); }
 
-      if (available.length < numSquares) {
-        el.status.textContent = 'Not enough squares left!';
-        return;
-      }
+function renderTabs() {
+  $('tabs').innerHTML = STAKES.map(s => {
+    const b = S.boards[s.v];
+    const sub = s.live ? `Board #${b.n} · ${b.plays}/${CLOSE_AT}` : 'coming soon';
+    return `<button class="tab ${S.active == s.v ? 'on' : ''} ${s.live ? '' : 'off'}" data-stake="${s.v}" ${s.live ? '' : 'disabled aria-disabled="true"'}>$${s.v} <small>${sub}</small></button>`;
+  }).join('');
+}
+function renderHead() {
+  const b = cur(); const nextM = (Math.floor(b.plays / MILESTONE) + 1) * MILESTONE;
+  const mine = b.counts.me || 0, cap = capFor('me');
+  const left = STALL_MS - (now() - b.openedAt);
+  $('boardHead').innerHTML = `
+    <div>
+      <div class="board-title">$${b.stake} Board #${b.n}${b.ea ? '<span class="ea">⚡ Early Access</span>' : ''}</div>
+      <div class="mut" style="font-size:12.5px">Tip $${b.stake} per square · ${b.carryIn > 0 ? `<b style="color:var(--big)">Carryover ${fmt(b.carryIn)}</b> rides on the first Big Send · ` : ''}closes at ${CLOSE_AT} plays or in 5 days</div>
+    </div>
+    <div class="stats">
+      <span class="stat">Plays <b>${b.plays}</b>/${CLOSE_AT}</span>
+      <span class="stat">Next unlock <b>${nextM}</b> <span>(${nextM - b.plays} to go)</span></span>
+      <span class="stat">Big Sends unlock <b>${b.plays >= BIG_UNLOCK ? 'live' : 'at 100'}</b></span>
+      <span class="stat">Closes in <b id="stallLeft">${dur(left)}</b></span>
+      <span class="stat">Your squares <b>${mine}</b>/${cap}</span>
+    </div>
+    <div class="progress" style="flex-basis:100%"><i style="width:${b.plays / CLOSE_AT * 100}%"></i></div>`;
+}
+function renderSelbar() {
+  const b = cur(), n = UI.sel.size, cap = capFor('me'), mine = b.counts.me || 0;
+  if (S.hold) {
+    const hb = S.boards[S.hold.stake];
+    $('selbar').innerHTML = `<div class="info">⏳ <b>${S.hold.squares.length}</b> square${S.hold.squares.length > 1 ? 's' : ''} held on ${label(hb)} · code <b>${S.hold.code}</b> · <span class="timer" id="holdLeft">${dur(S.hold.exp - now())}</span></div>
+      <div class="acts"><button class="btn pri" data-act="openPay">Finish tip →</button></div>`;
+    return;
+  }
+  if (!n) { $('selbar').innerHTML = `<div class="info mut">Tap empty squares to pick them (you can hold up to <b>${Math.max(0, cap - mine)}</b> more on this board). ${unlocked() >= b.stake ? `You have <b style="color:var(--dbl)">${fmt(unlocked())}</b> unlocked to Replay.` : ''}</div>
+    <div class="acts"><button class="btn sm" data-act="quickPick" data-n="5" ${cap - mine < 1 ? 'disabled' : ''}>Quick pick 5</button></div>`; return; }
+  $('selbar').innerHTML = `<div class="info"><b>${n}</b> selected · <b>${fmt(n * b.stake)}</b> <span class="mut">(${fmt(b.stake)} × ${n}) · ${mine + n}/${cap} of your cap</span></div>
+    <div class="acts"><button class="btn ghost sm" data-act="clearSel">Clear</button><button class="btn pri" data-act="hold">Hold &amp; get tip code →</button></div>`;
+}
+function renderPot() {
+  const b = cur(); const big = b.bag.big;
+  const bigLine = big === 2 ? '2 Big Sends left' : big === 1 ? '<span class="lurk">1 Big Send still lurking</span>' : 'Both Big Sends have hit';
+  const bigAmt = b.carryUsed || !b.carryIn ? fmt(5 * b.stake) : `${fmt(5 * b.stake + b.carryIn)} (next) · then ${fmt(5 * b.stake)}`;
+  $('potCard').innerHTML = `<h3>Still in the Pot <small>${label(b)}</small></h3>
+    <div class="pot-row double"><span class="n">${b.bag.double}</span><span class="l">Double Ups left<small>${fmt(2 * b.stake)} each · tipped back 2×</small></span></div>
+    <div class="pot-row big"><span class="n">${big}</span><span class="l">${bigLine}<small>${big ? `Big Send pays ${bigAmt}` : 'Undrawn Big Sends roll forward if a board closes early'}</small></span></div>
+    ${b.carryIn > 0 ? `<div class="mut" style="font-size:12px">Carryover posted at open: <b style="color:var(--big)">${fmt(b.carryIn)}</b></div>` : ''}
+    <div class="mut" style="font-size:12px;margin-top:4px">Every paid square draws from the prizes still left. Counts above go down live.</div>`;
+}
+function renderWallet() {
+  const u = unlocked(), p = pendingMine();
+  const items = [];
+  for (const c of S.wallet.cashouts.slice(0, 4)) { const done = now() - c.at >= CASHOUT_MS;
+    items.push(`<li><span>${esc(c.note)} <span class="pill ${done ? 'ok' : 'wait'}">${done ? 'Sent (simulated)' : `Sending · ≤16 h (${dur(c.at + CASHOUT_MS - now())} left)`}</span></span><span class="amt">${fmt(c.amt)}</span></li>`); }
+  for (const l of S.wallet.log.slice(0, 8)) items.push(`<li><span>${esc(l.note)}</span><span class="amt ${l.amt >= 0 ? 'pos' : 'neg'}">${l.amt >= 0 ? '+' : '−'}${fmt(Math.abs(l.amt))}</span></li>`);
+  $('walletCard').innerHTML = `<h3>Your wallet <small>${esc(meName())}</small></h3>
+    <div class="wal"><div class="u"><small>Unlocked</small><b>${fmt(u)}</b></div><div class="p"><small>Pending</small><b>${fmt(p)}</b></div></div>
+    <div class="row"><button class="btn good sm" data-act="replayHint" ${u < 5 ? 'disabled' : ''}>Replay</button><button class="btn sm" data-act="cashOut" ${u <= 0 ? 'disabled' : ''}>Cash out</button><span class="mut" style="font-size:12px">or hold it</span></div>
+    <div class="mut" style="font-size:12px;margin-top:8px">Pending wins unlock every 20 plays. Whatever's left from a board cashes out automatically at close.</div>
+    <ul class="list">${items.join('') || '<li class="mut">No activity yet.</li>'}</ul>`;
+}
+function renderNext() {
+  const b = cur(); const mine = b.counts.me || 0;
+  $('nextCard').innerHTML = `<h3>Up next <small>$${b.stake} Board #${b.n + 1}</small></h3>
+    <div style="font-size:13.5px">Play 10 or more squares on the open board to unlock Early Access to the next one — get your name out early.</div>
+    <div class="row" style="margin-top:8px"><span class="pill ${mine >= 10 ? 'ok' : ''}">${mine >= 10 ? '⚡ Early Access unlocked' : `You: ${mine}/10`}</span><span class="pill">Cap: ${capFor('me')} per board${S.me.boardsPlayed >= 2 ? '' : ` · 40 after 2 boards (you: ${S.me.boardsPlayed})`}</span></div>
+    <div class="mut" style="font-size:12px;margin-top:8px">Any carryover is posted on the next board when it opens. Referral bonus squares: planned.</div>`;
+}
+function renderFeed() {
+  const b = cur(); const recent = b.sq.map((s, i) => s && { ...s, i }).filter(Boolean).sort((x, y) => y.k - x.k).slice(0, 8);
+  $('feedCard').innerHTML = `<h3>Latest flips <small>${b.plays} plays</small></h3>
+    <ul class="list">${recent.map(s => `<li><span><span class="dot ${s.p}"></span>#${s.i + 1} · ${esc(s.n)}${s.o === 'me' ? ' (you)' : ''}</span><span class="mut">${PRIZE[s.p].label}</span></li>`).join('') || '<li class="mut">No plays yet — be first on the board.</li>'}</ul>
+    <div class="mut" style="font-size:11.5px;margin-top:6px">Tip routing stays private: nobody sees who tipped whom.</div>`;
+}
+function renderArchive() {
+  $('archiveCard').innerHTML = `<h3>Closed boards <small>${S.archive.length}</small></h3>
+    <ul class="list">${S.archive.map((r, k) => `<li><span>$${r.stake} Board #${r.n} · ${reasonText(r.reason)} · ${r.plays} plays</span><button class="btn sm" data-act="viewArchive" data-k="${k}">View</button></li>`).join('') || '<li class="mut">None yet.</li>'}</ul>`;
+}
+const reasonText = r => r === 'full' ? 'Full' : r === 'stall' ? '5-day stall' : 'Closed early';
+function renderMe() { $('meChip').textContent = (S.me.mode === 'x' ? '𝕏 ' : '🎭 ') + meName(); }
+function renderAll() { renderGrid(); renderSelbar(); if (UI.animating) return; renderTabs(); renderHead(); renderPot(); renderWallet(); renderNext(); renderFeed(); renderArchive(); renderMe(); if (S.dev.open) renderDev(); }
 
-      const randomSq = shuffle(available).slice(0, numSquares);
-      randomSq.forEach(i => toggleSquare(i));
+/* ===== Modals ===== */
+function openModal(kind, html, wide) { UI.modal = kind; const r = $('modalRoot'); r.innerHTML = `<div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" data-kind="${kind}">${html}</div>`; r.hidden = false; }
+function closeModal(kind) { if (kind && UI.modal !== kind) return; UI.modal = null; $('modalRoot').hidden = true; $('modalRoot').innerHTML = ''; setTimeout(nextSummary, 50); }
 
-      el.status.textContent = `Randomized ${numSquares} squares! (${MAX_RANDOMS_PER_DAY - randomsToday} left today)`;
-    };
+function onboarding(edit) {
+  const m = S.me;
+  openModal('name', `<h2>${edit ? 'Your display name' : 'Welcome to the test board 🎲'}</h2>
+    <p class="sub">${edit ? 'Pick how your tiles are labeled.' : 'This is a play-money test of the $5 board. Nothing is charged or sent. Pick how your tiles are labeled:'}</p>
+    <label class="choice ${m.mode === 'x' ? 'on' : ''}"><input type="radio" name="mode" value="x" ${m.mode === 'x' ? 'checked' : ''}><div class="f"><b>Use my X handle</b> <span class="mut">(sign in with X is simulated in test)</span><input type="text" id="nmX" placeholder="@yourhandle" value="${esc(m.x ? '@' + m.x : '')}" maxlength="16"></div></label>
+    <label class="choice ${m.mode === 'game' ? 'on' : ''}"><input type="radio" name="mode" value="game" ${m.mode === 'game' ? 'checked' : ''}><div class="f"><b>Use an in-game handle</b> <span class="mut">(screened: no slurs, gross stuff, “official”, or lookalikes)</span><input type="text" id="nmG" placeholder="e.g. NightOwl_42" value="${esc(m.game)}" maxlength="15"></div></label>
+    ${edit ? '' : `<label class="choice"><input type="checkbox" id="agree"><div class="f">I understand this is a <b>test</b>: play money only, rules are a draft (v0.3) pending legal review.</div></label>`}
+    <div class="err" id="nmErr"></div>
+    <div class="acts">${edit ? '<button class="btn ghost" data-close>Cancel</button>' : ''}<button class="btn pri" data-act="saveName">${edit ? 'Save' : 'Start playing'}</button></div>`);
+}
+function saveName() {
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  const raw = mode === 'x' ? $('nmX').value : $('nmG').value;
+  const err = checkName(raw, mode);
+  if (err) { $('nmErr').textContent = err; return; }
+  if ($('agree') && !$('agree').checked) { $('nmErr').textContent = 'Please confirm you understand this is a test.'; return; }
+  const v = raw.trim().replace(/^@/, '');
+  S.me.mode = mode; if (mode === 'x') S.me.x = v; else S.me.game = v; S.me.onboarded = true;
+  // relabel my tiles on open boards
+  for (const b of Object.values(S.boards)) { b.sq.forEach(s => { if (s && s.o === 'me') s.n = meName(); }); b.wins.forEach(w => { if (w.o === 'me') w.n = meName(); }); }
+  save(); closeModal('name'); renderAll(); toast(`You're playing as ${meName()}`);
+}
 
-    function canSpendMore(credAmount) {
-      if (username === '@DirkMannis') return true;
-      const today = new Date().toDateString();
-      if (!dailySpent[today]) dailySpent[today] = {};
-      const spent = dailySpent[today][currentBoard] || 0;
-      return spent + credAmount <= DAILY_CRED_LIMIT_PER_BOARD;
-    }
+function payModal() {
+  const h = S.hold; if (!h) return; const b = S.boards[h.stake]; const amt = h.squares.length * b.stake; const u = unlocked();
+  openModal('pay', `<h2>Tip to lock in ${h.squares.length} square${h.squares.length > 1 ? 's' : ''}</h2>
+    <p class="sub">${label(b)} · squares ${h.squares.map(i => '#' + (i + 1)).join(', ')}</p>
+    <div class="row" style="justify-content:space-between"><span class="code">${h.code}</span><span>Held for <span class="timer" id="payLeft">${dur(h.exp - now())}</span></span></div>
+    <ol class="steps">
+      <li>Open <b>X Money</b> and send <b>${fmt(b.stake)} × ${h.squares.length} = ${fmt(amt)}</b> to the host.</li>
+      <li>Put <b>${h.code}</b> in the note.</li>
+      <li>The board matches your code, amount and handle, marks your squares paid, and draws each one from the bag.</li>
+    </ol>
+    <div class="note">Your tip goes to a random opted-in player. You'll see “your tip went to a player” — never who.</div>
+    <div class="note test">TEST MODE: nothing is sent. Use the button below to simulate the X Money payment arriving.</div>
+    <div class="acts">
+      <button class="btn danger sm" data-act="cancelHold">Cancel hold</button>
+      <button class="btn good" data-act="payWallet" ${u >= amt ? '' : 'disabled'} title="Replay with unlocked wallet dollars">Pay with wallet (${fmt(u)} unlocked)</button>
+      <button class="btn pri" data-act="paySim">Simulate payment received</button>
+    </div>`);
+}
 
-    function recordSpend(credAmount) {
-      const today = new Date().toDateString();
-      if (!dailySpent[today]) dailySpent[today] = {};
-      dailySpent[today][currentBoard] = (dailySpent[today][currentBoard] || 0) + credAmount;
-      localStorage.setItem('dailySpent', JSON.stringify(dailySpent));
-    }
+async function payHold(method) {
+  const h = S.hold; if (!h) return; const b = S.boards[h.stake]; const amt = h.squares.length * b.stake;
+  if (method === 'wallet') { if (unlocked() < amt) return toast('Not enough unlocked in your wallet.'); spend(amt); logW(`Replay ${h.squares.length} square${h.squares.length > 1 ? 's' : ''} · ${label(b)}`, -amt); }
+  else logW(`Tipped ${fmt(amt)} via X Money (simulated) · ${h.code}`, 0);
+  S.hold = null; closeModal('pay');
+  if (S.active != b.stake) { S.active = b.stake; }
+  const idxs = [...h.squares].sort((x, y) => x - y);
+  UI.animating = true; idxs.forEach(i => UI.revealing.add(i));
+  const results = idxs.map(i => ({ i, p: play(b, i, 'me', meName(), method === 'wallet') }));
+  save(); renderAll();
+  const first = tiles[idxs[0]]; if (first) { const r = first.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 20) first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  await sleep(450);
+  for (const r of results) await flip(r.i, r.p);
+  UI.animating = false;
+  renderAll(); flushToasts();
+  resultModal(b, results, method, amt);
+  if (b.plays >= CLOSE_AT) { closeBoard(b.stake, 'full'); renderAll(); }
+}
+async function flip(i, p) {
+  const el = tiles[i]; el.classList.add('flip-out'); await sleep(260);
+  UI.revealing.delete(i); updateTile(i); el.classList.add('flip-in'); await sleep(300);
+  el.classList.remove('flip-in'); if (p !== 'patron') { el.classList.add('pop'); setTimeout(() => el.classList.remove('pop'), 520); }
+  if (p === 'big') burst(); await sleep(p === 'patron' ? 120 : 360);
+}
+function burst() { const d = document.createElement('div'); d.className = 'big-burst'; const cx = innerWidth / 2, cy = innerHeight / 2;
+  for (let k = 0; k < 36; k++) { const s = document.createElement('span'); s.textContent = ['💸', '⭐', '🎉', '💛'][k % 4]; s.style.left = cx + 'px'; s.style.top = cy + 'px';
+    s.style.setProperty('--dx', (Math.random() * 2 - 1) * innerWidth * .5 + 'px'); s.style.setProperty('--dy', (Math.random() * 2 - 1) * innerHeight * .5 + 'px'); d.appendChild(s); }
+  document.body.appendChild(d); setTimeout(() => d.remove(), 1700); }
 
-    function toggleSquare(i) {
-      const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-      const sq = document.querySelector(`[data-index="${i}"]`);
+function shareText(kind, b) {
+  if (kind === 'big') return `Hit the Big Send on Board #${b.n} 😳 Tip a Grok user, you might get tipped back.`;
+  if (kind === 'double') return `I tipped a random Grok user, and one tipped me back 2×! 🎲`;
+  return `Just tipped a random Grok user. My name's on Board #${b.n} now 👀`;
+}
+function shareBlock(kind, b) {
+  const text = shareText(kind, b); const url = location.origin + location.pathname;
+  const intent = 'https://x.com/intent/post?text=' + encodeURIComponent(text + ' ' + url);
+  return `<div class="share" id="shareTxt">${esc(text)} <span class="mut">${esc(url)}</span></div>
+    <div class="acts" style="justify-content:flex-start;margin-top:8px"><button class="btn sm" data-act="copyShare" data-text="${esc(text + ' ' + url)}">Copy</button><a class="btn sm" href="${intent}" target="_blank" rel="noopener">Post on 𝕏</a></div>`;
+}
+function resultModal(b, results, method, amt) {
+  const won = sumBy(results, r => r.p === 'double' ? 2 * b.stake : r.p === 'big' ? b.wins.find(w => w.i === r.i).amt : 0);
+  const best = results.some(r => r.p === 'big') ? 'big' : results.some(r => r.p === 'double') ? 'double' : 'patron';
+  const c = k => results.filter(r => r.p === k).length;
+  openModal('result', `<h2>${best === 'big' ? '😳 Big Send!' : best === 'double' ? '🎲 Tipped back!' : '👀 Your name is on the board'}</h2>
+    <p class="sub">${method === 'wallet' ? 'Replayed' : 'Tipped'} ${fmt(amt)} on ${label(b)} · ${results.length} square${results.length > 1 ? 's' : ''} · your tip${results.length > 1 ? 's' : ''} went to a player.</p>
+    <ul class="res">${results.map(r => `<li class="${r.p}"><b>#${r.i + 1} · ${PRIZE[r.p].label}</b>${r.p === 'double' ? `+${fmt(2 * b.stake)} pending` : r.p === 'big' ? `+${fmt(b.wins.find(w => w.i === r.i).amt)} pending` : r.p === 'host' ? 'Host’s tip ticket · your tile stays' : 'Patron tile'}</li>`).join('')}</ul>
+    <dl class="kv"><dt>Result</dt><dd>${c('double')} Double Up · ${c('big')} Big Send · ${c('patron') + c('host')} Patron</dd>
+    <dt>To your wallet</dt><dd>${fmt(won)} pending <span class="mut">(unlocks on the 20-play ladder${c('big') ? '; Big Send from 100 plays' : ''})</span></dd></dl>
+    <div class="mut" style="font-size:12.5px">Share it:</div>${shareBlock(best, b)}
+    <div class="acts"><button class="btn pri" data-close>Back to the board</button></div>`);
+}
+function tileModal(i) {
+  const b = cur(); const s = b.sq[i]; if (!s) return;
+  const w = b.wins.find(x => x.i === i);
+  openModal('tile', `<h2>Square #${i + 1}</h2><p class="sub">${label(b)}</p>
+    <dl class="kv"><dt>Player</dt><dd>${esc(s.n)}${s.o === 'me' ? ' (you)' : ''}</dd><dt>Result</dt><dd><span class="dot ${s.p}"></span>${PRIZE[s.p].label}</dd><dt>Drawn</dt><dd>Play ${s.k} of ${CLOSE_AT}${s.r ? ' · replay' : ''}</dd>
+    ${w ? `<dt>Unlocked</dt><dd>${fmt(w.un)} of ${fmt(w.amt)}</dd>` : ''}</dl>
+    ${s.o === 'me' ? shareBlock(s.p === 'host' ? 'patron' : s.p, b) : ''}
+    <div class="acts"><button class="btn" data-close>Close</button></div>`);
+}
+function miniGrid(rec) {
+  const unsel = {}; rec.unsel.forEach(u => { unsel[u.i] = u.p; });
+  const fake = { stake: rec.stake, sq: rec.sq };
+  let h = ''; for (let i = 0; i < GRID; i++) { const t = tileHTML(fake, i, { archive: true, unsel }); h += `<div class="${t.cls}" title="${esc(t.title)}"></div>`; }
+  return `<div class="mini">${h}</div>`;
+}
+function summaryModal(rec) {
+  const P = rec.pay; const u = { double: 0, big: 0, host: 0 }; rec.unsel.forEach(x => u[x.p]++);
+  const myBest = rec.mine.big ? 'big' : rec.mine.dbl ? 'double' : 'patron';
+  openModal('summary', `<h2>$${rec.stake} Board #${rec.n} closed · ${reasonText(rec.reason)}</h2>
+    <p class="sub">${rec.plays} paid plays · opened ${new Date(rec.openedAt).toLocaleString()} · closed ${new Date(rec.closedAt).toLocaleString()}</p>
+    <dl class="kv">
+      <dt>Tips in</dt><dd>${fmt(rec.plays * rec.stake)}${rec.carryIn ? ` + ${fmt(rec.carryIn)} carryover` : ''}</dd>
+      <dt>Double Ups</dt><dd>${P.dblCount} × ${fmt(2 * rec.stake)} = ${fmt(P.dblPaid)}${P.scale < 1 ? ` <span class="pill wait">scaled to ${Math.round(P.scale * 100)}%</span>` : ''}</dd>
+      <dt>Big Sends</dt><dd>${P.bigs.length ? P.bigs.map(x => `${esc(x.n)}${x.me ? ' (you)' : ''} ${fmt(x.amt)}`).join(' · ') : 'none drawn'}</dd>
+      <dt>Host Tip</dt><dd>${P.hostDrawn ? `${fmt(P.hostPaid)} to host, at close (${fmt(rec.stake)} × 5)` : 'not drawn · not paid'}</dd>
+      ${P.seeded ? `<dt>Seeded by host</dt><dd>${fmt(P.seeded)}</dd>` : ''}
+      <dt>Carryover → #${rec.n + 1}</dt><dd>${fmt(P.carryOut)}${P.undrawnBig ? ` <span class="mut">(incl. ${P.undrawnBig} undrawn Big Send${P.undrawnBig > 1 ? 's' : ''})</span>` : ''}</dd>
+      <dt>Unselected prizes</dt><dd>${rec.unsel.length ? `${u.double} Double Up · ${u.big} Big Send · ${u.host} Host Tip <span class="mut">(display only, dashed tiles)</span>` : 'none — every prize was drawn'}</dd>
+    </dl>
+    <div class="note"><b>You:</b> ${rec.mine.count} square${rec.mine.count === 1 ? '' : 's'} · ${rec.mine.dbl} Double Up · ${rec.mine.big} Big Send · won ${fmt(rec.mine.won)}${rec.mine.cashed ? ` · <b>${fmt(rec.mine.cashed)}</b> auto-cashed out (sent within 16 h)` : ''}${rec.mine.ea ? ' · ⚡ Early Access on the next board' : ''}</div>
+    ${miniGrid(rec)}
+    <div class="note">This summary shows the board and the payouts. It never shows who tipped whom.</div>
+    ${rec.mine.count ? `<div class="mut" style="font-size:12.5px;margin-top:10px">Share it:</div>${shareBlock(myBest, rec)}` : ''}
+    <div class="acts"><button class="btn pri" data-close>Go to $${rec.stake} Board #${rec.n + 1} →</button></div>`, true);
+}
+function nextSummary() { if (UI.modal || UI.animating || !UI.summaryQ.length) return; summaryModal(UI.summaryQ.shift()); }
 
-      if (revealed.has(i)) return;
+/* ===== Rules drawer ===== */
+function rulesHTML() {
+  return `<p class="mut">Draft v0.3 for review · TEST MODE uses play money.</p>
+  <h4>What it is</h4><ul><li>Tip a random Grok user, and tippers get a chance to be tipped back 2×.</li><li>Every paid square puts your name on the board. Tips route through the host, so nobody sees who tipped whom.</li></ul>
+  <h4>The bag (every 400-play board)</h4>
+  <table><tr><th>Prize</th><th>Count</th><th>Pays ($5)</th></tr>
+  <tr><td>Double Up</td><td>192</td><td>2 tips · $10</td></tr><tr><td>Big Send</td><td>2</td><td>5 tips · $25 (+ carryover on the first)</td></tr>
+  <tr><td>Host Tip</td><td>1</td><td>host, $5 ×5, at close</td></tr><tr><td>Patron</td><td>205</td><td>tile only</td></tr></table>
+  <p class="mut">399 tips paid out, 1 tip seeds the next board's carryover. The board shows 500 squares; it closes when 400 are paid. Prizes are drawn live from what's left in the bag — nothing is pre-assigned.</p>
+  <h4>How to play</h4><ul><li>Pick squares (cap: 20 per board while new, 40 after 2 boards; replays count).</li><li>Squares are held 15 min with a memo code like GROK-7Q4.</li><li>Send $5 × squares via X Money with the code in the note (simulated here).</li><li>Tiles flip one at a time, in square order.</li></ul>
+  <h4>Unlock ladder</h4><ul><li>Wins show as pending right away.</li><li>Every 20 paid plays (replays count): Double Ups drawn since the last milestone even up ($5 back), and older ones unlock their profit, oldest first.</li><li>Big Sends unlock from 100 plays (or the next 20-play milestone if drawn later).</li><li>Host Tip pays at close only.</li></ul>
+  <h4>Wallet</h4><ul><li>Winnings land as Pending, then Unlocked.</li><li>Replay unlocked dollars into squares on any open board, Cash out (sent within 16 hours), or hold.</li><li>At close, what's left from that board cashes out automatically.</li></ul>
+  <h4>Close</h4><ul><li>At 400 paid plays, or after 5 days (stall).</li><li>Early close: leftover prizes appear as <b>Unselected prizes</b> on empty squares (display only). Double Ups are scaled down proportionally if the tips in can't cover them. Undrawn Big Sends and leftover tips carry over. Host Tip paid only if drawn.</li><li>Then the board is archived and the next one opens with carryover posted.</li></ul>
+  <h4>Next board</h4><ul><li>Play 10 or more squares on the open board to unlock Early Access to the next one.</li></ul>
+  <h4>Fair play</h4><ul><li>Disputed or reversed tips void that square and any pending wins, and ban the player.</li><li>Display names are screened: no slurs, gross stuff, “official”, or lookalike handles.</li></ul>
+  <p class="mut">Not legal advice. Real-money play is pending legal review and payment-app terms.</p>`;
+}
 
-      if (selected.has(i)) {
-        selected.delete(i);
-        balance += cost;
-        sq.classList.remove('selected');
-      } else {
-        if (balance < cost || !canSpendMore(cost)) {
-          el.status.textContent = 'Daily limit reached for this board or not enough balance!';
-          return;
-        }
-        selected.add(i);
-        balance -= cost;
-        recordSpend(cost);
-        sq.classList.add('selected');
-      }
+/* ===== Dev panel ===== */
+function renderDev() {
+  const b = cur(); const p = $('devPanel');
+  p.innerHTML = `<h4>DEV · test controls ($${b.stake} Board #${b.n})</h4>
+  <div class="grp"><label>Top up play credits (unlocked wallet $)</label><div class="row"><input id="dvTop" type="number" value="50" min="1"><button class="btn sm" data-dev="topup">Add</button></div></div>
+  <div class="grp"><label>Simulated players</label><div class="row"><input id="dvN" type="number" value="25" min="1" max="400"><button class="btn sm" data-dev="sim">Add N plays</button><button class="btn sm" data-dev="fill">Fill to 400</button></div>
+    <div class="row" style="margin-top:6px"><label style="margin:0"><input type="checkbox" id="dvDrip" ${S.dev.drip ? 'checked' : ''} style="width:auto"> Auto-fill drip (1 play / 1.5 s)</label></div></div>
+  <div class="grp"><label>Board</label><div class="row"><button class="btn warn sm" data-dev="close">Force close (early)</button><button class="btn sm" data-dev="ff5">+5 days (stall)</button><button class="btn sm" data-dev="ff16">+16 h</button><button class="btn sm" data-dev="ff15">+15 min</button></div></div>
+  <div class="grp"><label>Boards played (cap ${capFor('me')})</label><div class="row"><input id="dvBP" type="number" value="${S.me.boardsPlayed}" min="0"><button class="btn sm" data-dev="bp">Set</button></div></div>
+  <div class="grp"><label><input type="checkbox" id="dvBag" ${S.dev.bag ? 'checked' : ''} style="width:auto"> Show hidden bag (debug only)</label>
+    ${S.dev.bag ? `<table><tr><td>Double Up</td><td>${b.bag.double}</td></tr><tr><td>Big Send</td><td>${b.bag.big}</td></tr><tr><td>Host Tip</td><td>${b.bag.host}</td></tr><tr><td>Patron</td><td>${b.bag.patron}</td></tr><tr><td>Total left</td><td>${b.bag.double + b.bag.big + b.bag.host + b.bag.patron}</td></tr><tr><td>Money in</td><td>${fmt(b.plays * b.stake + b.carryIn)}</td></tr><tr><td>Unlocked (all players)</td><td>${fmt(sumBy(b.wins, w => w.un))}</td></tr><tr><td>Sim clock offset</td><td>${(S.clock / 36e5).toFixed(2)} h</td></tr></table>` : ''}</div>
+  <div class="grp"><button class="btn danger sm" data-dev="reset">Reset everything</button></div>`;
+}
+function dev(act) {
+  const b = cur();
+  if (act === 'topup') { const v = Math.max(1, +$('dvTop').value || 0); S.wallet.buckets['dev'] = r2((S.wallet.buckets['dev'] || 0) + v); logW('DEV top-up (play credits)', v); save(); renderAll(); toast(`DEV: +${fmt(v)} play credits`); }
+  if (act === 'sim') { const n = botPlays(b.stake, Math.max(1, +$('dvN').value || 1)); toast(`DEV: ${n} simulated plays added`); }
+  if (act === 'fill') { const n = botPlays(b.stake, CLOSE_AT); toast(`DEV: ${n} simulated plays added`); }
+  if (act === 'close') { if (UI.animating) return; closeBoard(b.stake, 'forced'); renderAll(); nextSummary(); }
+  if (act === 'ff5') { S.clock += STALL_MS; tick(); toast('DEV: clock +5 days'); }
+  if (act === 'ff16') { S.clock += CASHOUT_MS; tick(); renderAll(); toast('DEV: clock +16 h'); }
+  if (act === 'ff15') { S.clock += HOLD_MS; tick(); renderAll(); toast('DEV: clock +15 min'); }
+  if (act === 'bp') { S.me.boardsPlayed = Math.max(0, Math.floor(+$('dvBP').value || 0)); save(); renderAll(); toast(`DEV: boards played = ${S.me.boardsPlayed} (cap ${capFor('me')})`); }
+  if (act === 'reset') { if (!confirm('Reset all test data (boards, wallet, archive, name)?')) return; localStorage.removeItem(KEY); UI.sel.clear(); UI.summaryQ = []; closeModal(); fresh(); save(); buildGrid(); renderAll(); onboarding(false); }
+  save();
+}
 
-      updatePicks();
-      updateSelectedCount();
-      updateBalance();
-      el.submit.disabled = selected.size === 0;
-      el.status.textContent = '';
-    }
+/* ===== Interactions ===== */
+function toggle(i) {
+  const b = cur(); if (UI.animating) return;
+  if (b.sq[i]) return tileModal(i);
+  if (S.hold) { if (S.hold.squares.includes(i)) return payModal(); return toast('Finish or cancel your current hold first.'); }
+  if (UI.sel.has(i)) { UI.sel.delete(i); updateTile(i); renderSelbar(); return; }
+  const cap = capFor('me'), mine = b.counts.me || 0;
+  if (mine + UI.sel.size >= cap) return toast(`Cap reached: ${cap} squares per board${cap === 20 ? ' (40 after 2 boards)' : ''}. Invite friends to speed up the board!`);
+  if (b.plays + UI.sel.size >= CLOSE_AT) return toast('That would go past the 400-play close.');
+  UI.sel.add(i); updateTile(i); renderSelbar();
+}
+function quickPick(n) { const b = cur(); const empt = []; for (let i = 0; i < GRID; i++) if (!b.sq[i] && !UI.sel.has(i)) empt.push(i);
+  const room = Math.min(n, capFor('me') - (b.counts.me || 0) - UI.sel.size, CLOSE_AT - b.plays - UI.sel.size);
+  for (let k = 0; k < room && empt.length; k++) UI.sel.add(empt.splice(Math.floor(Math.random() * empt.length), 1)[0]);
+  renderGrid(); renderSelbar(); }
+function hold() { const b = cur(); if (!UI.sel.size) return;
+  S.hold = { stake: b.stake, squares: [...UI.sel].sort((x, y) => x - y), code: code(), at: now(), exp: now() + HOLD_MS };
+  UI.sel.clear(); save(); renderAll(); payModal(); }
 
-    function updatePicks() {
-      el.picks.innerHTML = Array.from(selected).map(i => `<span class="pick">${i+1}</span>`).join('');
-    }
+document.addEventListener('click', e => {
+  const t = e.target;
+  const tile = t.closest('#grid > div'); if (tile) return toggle(+tile.dataset.i);
+  const tab = t.closest('.tab'); if (tab && !tab.disabled) { if (UI.animating) return; S.active = +tab.dataset.stake; UI.sel.clear(); save(); renderAll(); return; }
+  if (t.closest('[data-close]')) return closeModal();
+  if (t.id === 'modalRoot' && UI.modal && UI.modal !== 'name' && UI.modal !== 'pay') return closeModal();
+  if (t.closest('[data-close-drawer]') || t.id === 'drawer') { $('drawer').hidden = true; return; }
+  const d = t.closest('[data-dev]'); if (d) return dev(d.dataset.dev);
+  const a = t.closest('[data-act]'); if (!a) return;
+  const act = a.dataset.act;
+  if (act === 'clearSel') { UI.sel.clear(); renderGrid(); renderSelbar(); }
+  if (act === 'quickPick') quickPick(+a.dataset.n);
+  if (act === 'hold') hold();
+  if (act === 'openPay') payModal();
+  if (act === 'paySim') payHold('xmoney');
+  if (act === 'payWallet') payHold('wallet');
+  if (act === 'cancelHold') { S.hold = null; save(); closeModal('pay'); renderAll(); toast('Hold cancelled — squares are back on the board.'); }
+  if (act === 'saveName') saveName();
+  if (act === 'cashOut') { if (confirm(`Cash out ${fmt(unlocked())}? (Simulated — sent within 16 hours)`)) cashOut(); }
+  if (act === 'replayHint') { toast('Pick squares on any open board, then choose “Pay with wallet”.'); $('grid').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  if (act === 'viewArchive') summaryModal(S.archive[+a.dataset.k]);
+  if (act === 'copyShare') { const txt = a.dataset.text; (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Copied!')).catch(() => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('Copied!'); } catch { } ta.remove(); }); }
+});
+document.addEventListener('change', e => {
+  if (e.target.name === 'mode') document.querySelectorAll('.choice').forEach(c => { const r = c.querySelector('input[type=radio]'); if (r) c.classList.toggle('on', r.checked); });
+  if (e.target.id === 'dvDrip') { S.dev.drip = e.target.checked; save(); }
+  if (e.target.id === 'dvBag') { S.dev.bag = e.target.checked; save(); renderDev(); }
+});
+document.addEventListener('focusin', e => { if (e.target.id === 'nmX' || e.target.id === 'nmG') { const r = e.target.closest('.choice').querySelector('input[type=radio]'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!$('drawer').hidden) $('drawer').hidden = true; else if (UI.modal && UI.modal !== 'name') closeModal(); } if (e.key === 'Enter' && UI.modal === 'name') saveName(); });
+$('rulesBtn').onclick = () => { $('rulesBody').innerHTML = rulesHTML(); $('drawer').hidden = false; };
+$('meChip').onclick = () => onboarding(true);
+$('devToggle').onclick = () => { S.dev.open = !S.dev.open; $('devPanel').hidden = !S.dev.open; $('devToggle').classList.toggle('on', S.dev.open); if (S.dev.open) renderDev(); save(); };
 
-    function updateSelectedCount() {
-      el.selectedCount.textContent = `Selected: ${selected.size}`;
-    }
+/* ===== Clock ===== */
+let lastDrip = 0;
+function tick() {
+  if (S.hold && now() > S.hold.exp) { S.hold = null; closeModal('pay'); toast('Your 15-minute hold expired — squares went back on the board.'); save(); renderAll(); }
+  if (!UI.animating) for (const st of [5, 20]) { const b = S.boards[st]; if (b && now() - b.openedAt >= STALL_MS) { if (b.plays === 0) { b.openedAt = now(); save(); renderAll(); continue; } closeBoard(st, 'stall'); renderAll(); } }
+  if (S.dev.drip && !UI.animating && Date.now() - lastDrip > 1500) { lastDrip = Date.now(); botPlays(S.active, 1); }
+  const sl = $('stallLeft'); if (sl) sl.textContent = dur(STALL_MS - (now() - cur().openedAt));
+  const hl = $('holdLeft'); if (hl && S.hold) hl.textContent = dur(S.hold.exp - now());
+  const pl = $('payLeft'); if (pl && S.hold) pl.textContent = dur(S.hold.exp - now());
+  nextSummary();
+}
 
-    el.submit.onclick = async () => {
-      el.submit.disabled = true;
-      el.clear.disabled = true;
-      el.randomize.disabled = true;
-      el.status.textContent = 'Revealing...';
-      const mult = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-      const picks = Array.from(selected);
-      let totalWin = 0;
+/* ===== Boot ===== */
+S = load() || fresh();
+buildGrid(); renderAll();
+if (S.dev.open) { $('devPanel').hidden = false; $('devToggle').classList.add('on'); }
+if (!S.me.onboarded) onboarding(false);
+setInterval(tick, 1000);
+window.__tip = { get S() { return S; }, UI, botPlays, closeBoard };
+})();
 
-      for (let k = 0; k < picks.length; k++) {
-        const i = picks[k];
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const outcome = board[i];
-        revealed.add(i);
-        played++;
-
-        const sq = document.querySelector(`[data-index="${i}"]`);
-        sq.classList.add('revealed', outcome);
-        sq.innerHTML = `<strong>${outcome.toUpperCase()}<br>+${(CONFIG.payouts[outcome] * mult).toFixed(1)}</strong>`;
-
-        playSound(outcome);
-        totalWin += CONFIG.payouts[outcome] * mult;
-        userResults[outcome] = (userResults[outcome] || 0) + 1;
-
-        updateStats();
-      }
-
-      balance += totalWin;
-      updateBalance();
-      selected.clear();
-      updatePicks();
-      updateSelectedCount();
-      el.status.textContent = `Revealed! +${totalWin.toFixed(1)} Creds`;
-      el.submit.disabled = false;
-      el.clear.disabled = false;
-      el.randomize.disabled = randomsToday >= MAX_RANDOMS_PER_DAY;
-
-      localStorage.setItem('userResults', JSON.stringify(userResults));
-      updateUserStats();
-
-      if (picks.length > 0) unlockNextBoard();
-
-      if (played >= CONFIG.closeAt) {
-        closeGame();
-      }
-    };
-
-    el.clear.onclick = () => {
-      selected.forEach(i => {
-        const cost = currentBoard.startsWith('premium') ? PREMIUM_MULT : 1;
-        balance += cost;
-        document.querySelector(`[data-index="${i}"]`).classList.remove('selected');
-      });
-      selected.clear();
-      updatePicks();
-      updateSelectedCount();
-      updateBalance();
-    };
-
-    function playSound(type) {
-      try {
-        const audio = document.getElementById(`sound-${type}`);
-        audio.currentTime = 0;
-        audio.play();
-      } catch(e) {}
-    }
-
-    function updateStats() {
-      const remBig   = CONFIG.big   - [...revealed].filter(i => board[i] === 'big').length;
-      const remSmall = CONFIG.small - [...revealed].filter(i => board[i] === 'small').length;
-      const remLoss  = CONFIG.loss  - [...revealed].filter(i => board[i] === 'loss').length;
-      el.remBig.textContent   = remBig;
-      el.remSmall.textContent = remSmall;
-      el.remLoss.textContent  = remLoss;
-      el.played.textContent   = played;
-    }
-
-    function closeGame() {
-      const stats = {
-        id: gameId,
-        played: CONFIG.closeAt,
-        loss: [...revealed].filter(i => board[i] === 'loss').length,
-        small: [...revealed].filter(i => board[i] === 'small').length,
-        big: [...revealed].filter(i => board[i] === 'big').length
-      };
-      history.unshift(stats);
-      localStorage.setItem('history', JSON.stringify(history.slice(0, 50)));
-      loadHistory();
-      el.topWinners.style.display = 'block';
-      updateWinners();
-      setTimeout(newGame, 4000);
-    }
-
-    function updateWinners() {
-      el.winners.innerHTML = `
-        <div>@GalacticGrok: +12.5 Creds</div>
-        <div>@DirkMannis: +8.2 Creds</div>
-        <div>@CredHunter: +6.0 Creds</div>
-      `;
-    }
-
-    function loadHistory() {
-      el.history.innerHTML = history.map(h => 
-        `<div class="history-item">
-          Game #${h.id}: Played ${h.played} | 🔴${h.loss} | 🟡${h.small} | 🟢${h.big}
-        </div>`
-      ).join('');
-    }
-
-    function updateBalance() {
-      el.balance.textContent = `Balance: ${balance.toFixed(1)} Creds`;
-    }
-
-    function updateUserStats() {
-      el.userBig.textContent = userResults.big;
-      el.userSmall.textContent = userResults.small;
-      el.userLoss.textContent = userResults.loss;
-      const today = new Date().toDateString();
-      const spent = dailySpent[today]?.[currentBoard] || 0;
-      el.remCredBoard.textContent = DAILY_CRED_LIMIT_PER_BOARD - spent;
-    }
-
-    function newGame() {
-      gameId++;
-      board = shuffle([...Array(CONFIG.loss).fill('loss'), ...Array(CONFIG.small).fill('small'), ...Array(CONFIG.big).fill('big')]);
-      revealed.clear(); selected.clear(); played = 0;
-      updateGrid();
-      updateStats();
-      el.submit.disabled = true;
-      el.topWinners.style.display = 'none';
-      el.status.textContent = '';
-      updateSelectedCount();
-    }
-
-    function shuffle(arr) {
-      const copy = arr.slice();
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-      }
-      return copy;
-    }
-
-    function updateGrid() {
-      el.grid.innerHTML = '';
-      for (let i = 0; i < CONFIG.total; i++) {
-        const sq = document.createElement('div');
-        sq.className = 'square';
-        sq.textContent = i + 1;
-        sq.dataset.index = i;
-        sq.onclick = () => toggleSquare(i);
-        el.grid.appendChild(sq);
-      }
-    }
-
-    // Initial calls
-    updateTabs();
-  </script>
+</script>
 </body>
 </html>
