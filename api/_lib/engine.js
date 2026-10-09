@@ -451,7 +451,8 @@ export async function payHold(pool, player, { method }) {
     const results = sq.map((idx, i) => {
       const p = playSquare(st, idx, { id: player.id, name }, method === 'wallet' ? 'wallet' : 'xmoney_sim');
       pay(i, idx, PRIZE[p], b.id);
-      return { i: idx, k: st.b.plays, p };
+      const w = (p === 'double' || p === 'big') ? st.wins.find(x => x.play_no === st.b.plays) : null;
+      return { i: idx, k: st.b.plays, p, amount: w ? w.amount : 0 };
     });
     await c.query('DELETE FROM holds WHERE id = $1', [h.id]);
     await writeState(st);

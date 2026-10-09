@@ -73,8 +73,8 @@ export async function boardFeed(pool, stake) {
               (SELECT count(*) FROM hold_squares WHERE stake = $1 AND board_n = $2 AND expires_at > now())::int AS held`,
       [stake, b.n + 1]),
     pool.query(
-      `SELECT id, n, reason, opened_at, closed_at, commit_hash, summary, reveal FROM boards
-        WHERE stake = $1 AND status = 'closed' ORDER BY n DESC LIMIT 1`, [stake]),
+      `SELECT id, n, reason, plays, opened_at, closed_at, commit_hash, summary, reveal FROM boards
+        WHERE stake = $1 AND status = 'closed' ORDER BY n DESC LIMIT 5`, [stake]),
   ]);
   const lc = last.rows[0];
   // who: compact player table so each square only carries an index
@@ -111,9 +111,39 @@ export async function boardFeed(pool, stake) {
       openedAt: new Date(lc.opened_at).toISOString(), closedAt: new Date(lc.closed_at).toISOString(),
       commit: lc.commit_hash, summary: lc.summary, reveal: lc.reveal, // salt + order are public once a board closes
     } : null,
+    // last few closed boards (newest first); full snapshot via GET /api/board/:stake?n=<n>
+    recentClosed: last.rows.map(r => ({ n: r.n, label: `$${stake} Board #${r.n}`, reason: r.reason, plays: r.plays,
+      closedAt: new Date(r.closed_at).toISOString() })),
     squares,   // [squareIndex 0-499, playNo 1-400, prize, whoIndex]
     who,       // [{ name, bot }]  bots are labeled 🤖 in the UI
     held: heldIdx,
     recent,
+  };
+}
+
+/** Immutable snapshot of a closed board (squares + summary + reveal), or null if (stake, n) isn't closed. */
+export async function closedBoard(pool, stake, n) {
+  const { rows: [b] } = await pool.query(
+    `SELECT id, n, reason, plays, carry_in, opened_at, closed_at, commit_hash, commit_scheme, summary, reveal FROM boards
+      WHERE stake = $1 AND n = $2 AND status = 'closed'`, [stake, n]);
+  if (!b) return null;
+  const plays = await pool.query(
+    `SELECT p.idx, p.play_no, p.prize, p.player_id, pl.id, pl.handle, pl.handle_kind, pl.x_user_id, pl.is_bot
+       FROM plays p JOIN players pl ON pl.id = p.player_id WHERE p.board_id = $1 ORDER BY p.play_no`, [b.id]);
+  const who = [], whoIx = new Map();
+  const squares = plays.rows.map(r => {
+    let k = whoIx.get(r.player_id);
+    if (k === undefined) { k = who.length; whoIx.set(r.player_id, k); who.push({ name: displayName(r), bot: r.is_bot }); }
+    return [r.idx, r.play_no, KINDS[r.prize], k];
+  });
+  return {
+    v: 1,
+    board: {
+      id: Number(b.id), stake, n: b.n, status: 'closed', label: `$${stake} Board #${b.n}`, reason: b.reason, plays: b.plays,
+      grid: GRID, closeAt: CLOSE_AT, carryIn: money(b.carry_in),
+      openedAt: new Date(b.opened_at).toISOString(), closedAt: new Date(b.closed_at).toISOString(),
+      commit: { hash: b.commit_hash, scheme: b.commit_scheme }, summary: b.summary, reveal: b.reveal,
+    },
+    squares, who,
   };
 }
