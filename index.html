@@ -274,6 +274,18 @@ body.stale .grid{opacity:.72}
 .devpanel ul.audit{list-style:none;margin:0 0 6px;padding:0;font:11.5px ui-monospace,monospace}
 .devpanel ul.audit li{padding:2px 0;border-bottom:1px solid #2e141a;display:flex;justify-content:space-between}
 
+/* Early Access wait indicator */
+.ea-wait-line{font-size:12.5px;font-weight:600;color:#ffd27a;background:#2a2108;border:1px solid #7a5a10;border-radius:10px;padding:5px 10px;margin-top:6px}
+.ea-wait-line .prog{color:#c9a75a;font-weight:500;margin-left:4px}
+.ea-wait-line .pill{margin-left:4px}
+#walletCard .ea-wait-line{margin:0 0 8px}
+.ea-wait-box{font-size:15px;font-weight:800;color:#ffd27a;background:#2a2108;border:1px solid #c08a1a;border-radius:12px;padding:10px 12px;margin:6px 0 8px;box-shadow:0 0 0 3px rgba(255,180,40,.08)}
+.ea-wait-box small{display:block;font-size:12.5px;font-weight:600;color:#c9a75a;margin-top:3px}
+.tile.ea-wait::after{content:'⏳';position:absolute;top:1px;right:1px;width:13px;height:13px;display:grid;place-items:center;border-radius:50%;background:#1a1405;border:1px solid #c08a1a;font-size:9px;line-height:1;pointer-events:none;z-index:1}
+@media (max-width:700px){.tile.ea-wait::after{width:9px;height:9px;top:0;right:0;font-size:6px}}
+.grid.locked .tile.pre{opacity:1;filter:none}
+.lg.pre{display:inline-block}
+
 </style>
 </head>
 <body>
@@ -319,6 +331,7 @@ body.stale .grid{opacity:.72}
       <span><i class="lg mine"></i>Your tile</span>
       <span><i class="lg sel"></i>Selected</span>
       <span><i class="lg heldx"></i>Held by someone</span>
+      <span><i class="lg pre"></i>⏳ Early Access pick (revealed when the open board closes)</span>
       <span><i class="lg bot">🤖</i>Practice player</span>
     </div>
     <div class="selbar" id="selbar"></div>
@@ -471,6 +484,10 @@ const eaOK = () => myBoard(active).earlyAccessNext;
 const picking = () => UI.view !== 'next' || (eaOK() && UI.eaPick);
 const mineCount = b => (b.next ? b.preCount : b.mine.size);
 const roomLeft = b => capNow() - mineCount(b) - UI.sel.size;
+/* Early Access wait: picks on Board #n+1 play (and reveal) only when open Board #n closes. */
+const eaWaitNote = (stake, n) => `Early Access picks play when Board #${n} closes. Your reveals stay hidden until then.`;
+const openProgress = (stake, n) => { const f = API.feed[stake]; return f && f.board.n === n ? `Board #${n}: ${f.board.plays}/${CLOSE_AT} played` : ''; };
+const eaWaiting = (stake, n) => { const f = API.feed[stake]; return !!f && f.board.n + 1 === n; };
 const holdLabel = h => h.early ? `${label(h.stake, h.n)} (Early Access)` : label(h.stake, h.n);
 
 /* ===== Toasts ===== */
@@ -487,8 +504,8 @@ function buildGrid() { const g = $('grid'); g.innerHTML = ''; tiles = [];
 function tileHTML(b, i, opts = {}) {
   const s = b.sq[i]; let cls = 'tile', txt = '', title = `#${i + 1}`;
   if (b.next && !opts.archive) {
-    if (b.pre.has(i)) { cls += ' pre'; txt = String(i + 1); title += ' · your Early Access pick (paid · played when this board opens)'; }
-    else if (b.myHeld.has(i)) { cls += ' held'; title += ' · held for you'; }
+    if (b.pre.has(i)) { cls += ' pre ea-wait'; txt = String(i + 1); title += ` · ⏳ your Early Access pick · Revealed when Board #${b.n - 1} closes`; }
+    else if (b.myHeld.has(i)) { cls += ' held ea-wait'; title += ` · held for you · ⏳ Revealed when Board #${b.n - 1} closes`; }
     else if (UI.sel.has(i)) { cls += ' sel'; title += ' · selected'; }
     else { cls += ' empty' + (picking() ? '' : ' locked'); txt = String(i + 1); title += picking() ? ' · Early Access' : ` · opens when Board #${b.n - 1} closes`; }
     return { cls, txt, title };
@@ -508,7 +525,7 @@ function renderGrid() {
   g.classList.remove('loading');
   const vb = viewB(); for (let i = 0; i < GRID; i++) updateTile(i, vb);
   const locked = UI.view === 'next' && !picking(); g.classList.toggle('locked', locked); g.classList.toggle('nextview', UI.view === 'next');
-  const gl = $('gridLock'); gl.hidden = !locked; if (locked) gl.innerHTML = `🔒 Opens when Board #${feed().board.n} closes.`;
+  const gl = $('gridLock'); gl.hidden = !locked; if (locked) { const pc = nextB().preCount; gl.innerHTML = `🔒 Opens when Board #${feed().board.n} closes.${pc ? ` ⏳ Your ${plural(pc, 'Early Access pick')} ${pc > 1 ? 'are' : 'is'} revealed then.` : ''}`; }
 }
 function renderViewTog() { const f = feed(); if (!f) { setHTML($('viewTog'), ''); return; } const n = f.board.n;
   setHTML($('viewTog'), `<button class="vt ${UI.view === 'open' ? 'on' : ''}" data-view="open" role="tab" aria-selected="${UI.view === 'open'}">Board #${n} <small>open</small></button>`
@@ -552,6 +569,7 @@ function renderNextHead() {
     <div>
       <div class="board-title">$${active} Board #${nb.n} <span class="sq">· ${GRID} squares</span><span class="lockpill">🔒 Not open yet</span></div>
       <div class="mut" style="font-size:12.5px">Opens when Board #${n} closes.${eaOK() ? ' Early Access picks are paid now, held for you, and played the moment it opens.' : ''}</div>
+      ${eaOK() || nb.preCount ? `<div class="ea-wait-line">⏳ ${eaWaitNote(active, n)} <span class="prog">${openProgress(active, n)}</span></div>` : ''}
     </div>
     <div class="stats">${ea}${nb.preCount ? `<span class="stat">Your pre-picks <b>${nb.preCount}</b>/${cap}</span>` : ''}</div>`);
 }
@@ -566,6 +584,8 @@ function renderSelbar() {
     return;
   }
   if (b.next && !picking()) { const left = EA_AT - myBoard(active).mySquares; setHTML(bar, `<div class="info mut">🔒 Board #${b.n} opens when Board #${b.n - 1} closes. ${eaOK() ? 'Tap <b>⚡ Early Access: pick now</b> to pre-pick squares.' : `Play ${plural(left, 'more square')} on Board #${b.n - 1} for Early Access.`}</div>`); return; }
+  if (!n && b.next) { setHTML(bar, `<div class="info mut">Tap empty squares or type their numbers above to pick them (you can hold up to <b>${Math.max(0, cap - mine)}</b> more on this board). <span style="color:#ffd27a">⏳ They play when Board #${b.n - 1} closes; reveals stay hidden until then.</span></div>
+    <div class="acts"><button class="btn sm" data-act="quickPick" data-n="5" ${cap - mine < 1 ? 'disabled' : ''}>Quick pick 5</button></div>`); return; }
   if (!n) { setHTML(bar, `<div class="info mut">Tap empty squares or type their numbers above to pick them (you can hold up to <b>${Math.max(0, cap - mine)}</b> more on this board). ${unlocked() >= b.stake ? `You have <b style="color:var(--dbl)">${fmt(unlocked())}</b> unlocked to Replay.` : ''}</div>
     <div class="acts"><button class="btn sm" data-act="quickPick" data-n="5" ${cap - mine < 1 ? 'disabled' : ''}>Quick pick 5</button></div>`); return; }
   setHTML(bar, `<div class="info"><b>${n}</b> selected · <b>${fmt(n * b.stake)}</b> <span class="mut">(${fmt(b.stake)} × ${n}) · ${mine + n}/${cap} of your cap</span></div>
@@ -595,17 +615,22 @@ function renderWallet() {
   for (const c of m.payouts.slice(0, 4)) { const left = Date.parse(c.sendBy) - now(), done = c.status !== 'would_send' || left <= 0;
     items.push(`<li><span>${esc(PAYOUT_KIND[c.kind] || 'Payout')} <span class="pill ${done ? 'ok' : 'wait'}">${done ? 'Would have been sent (beta)' : `Would send · ≤16 h (${dur(left)} left)`}</span></span><span class="amt">${fmt(c.amount)}</span></li>`); }
   for (const h of API.hist.entries.filter(h => h.kind !== 'win' && h.kind !== 'preplay').slice(0, 6))
-    items.push(`<li><span>${esc(h.event)}${h.board ? ` · ${esc(h.board.label)}` : ''}${h.square ? ` · #${h.square}` : ''}</span>${h.bucket === null && h.amount < 0 ? `<span class="amt neu">${fmt(-h.amount)} tip</span>` : h.amount ? `<span class="amt ${h.amount > 0 ? 'pos' : 'neg'}">${h.amount > 0 ? '+' : '−'}${fmt(Math.abs(h.amount))}</span>` : '<span class="amt neu">·</span>'}</li>`);
+    items.push(`<li><span>${esc(h.event)}${h.board ? ` · ${esc(h.board.label)}` : ''}${h.square ? ` · #${h.square}` : ''}${eaPill(h)}</span>${h.bucket === null && h.amount < 0 ? `<span class="amt neu">${fmt(-h.amount)} tip</span>` : h.amount ? `<span class="amt ${h.amount > 0 ? 'pos' : 'neg'}">${h.amount > 0 ? '+' : '−'}${fmt(Math.abs(h.amount))}</span>` : '<span class="amt neu">·</span>'}</li>`);
   const carried = m.wallet.buckets.filter(k => k.bucket.startsWith('carry:') && k.amount > 0).map(k => `<div class="carryline">↪ <b>${fmt(k.amount)}</b> carried to ${esc(bucketLabel(k.bucket))} · replay credit · auto-pays when it closes if unused</div>`);
+  const eaPending = (m.prepicks || []).filter(pp => eaWaiting(pp.stake, pp.n)).map(pp => `<div class="ea-wait-line">⏳ <b>${plural(pp.count, 'Early Access pick')}</b> on ${esc(label(pp.stake, pp.n))} <span class="pill wait">Waiting for Board #${pp.n - 1} to close</span></div>`);
   const keep = m.player.keepBalance;
   setHTML($('walletCard'), `<h3>Your wallet <small id="walletName">${esc(m.player.name)}</small></h3>
     <div class="wal"><div class="u"><small>Unlocked</small><b id="walUnlocked">${fmt(u)}</b></div><div class="p"><small>Pending</small><b id="walPending">${fmt(p)}</b></div></div>
-    ${carried.join('')}
+    ${carried.join('')}${eaPending.join('')}
     <div class="row"><button class="btn good sm" data-act="replayHint" ${u < 5 ? 'disabled' : ''}>Replay</button><button class="btn sm" data-act="cashOut" ${u <= 0 || UI.busy ? 'disabled' : ''}>Cash out</button><span class="mut" style="font-size:12px">or hold it</span></div>
     <div class="mut" style="font-size:12px;margin-top:8px">Pending wins unlock every 20 plays. At close, your wallet balance would be sent to you via X Money within 16 hours and can no longer be played. <span class="betatag">Free beta: nothing is sent.</span></div>
     <label class="keep ${keep ? 'on' : ''}"><input type="checkbox" id="keepBal" ${keep ? 'checked' : ''}><span><b>Keep my balance in play</b> (carry to the next board)<small>Off by default. Covers your current balance at the next close only, then resets. Carried credit still unused when that next board closes is paid out then.</small></span></label>
     <ul class="list">${items.join('') || '<li class="mut">No activity yet.</li>'}</ul>`);
 }
+// 'prepay' rows carry no board id; the note names the pick's board ("… · $5 Board #2 · plays when it opens · …").
+const eaPill = h => { if (h.kind !== 'prepay') return ''; const m = /\$(\d+) Board #(\d+)/.exec(h.note || ''); if (!m) return '';
+  const stake = Number(m[1]), n = Number(m[2]);
+  return eaWaiting(stake, n) ? ` <span class="pill wait">⏳ Waiting for Board #${n - 1} to close</span>` : ''; };
 const hTime = at => new Date(at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 function histAmt(h) {
   if (h.kind === 'win') return `<span class="amt pend">+${fmt(h.pending)} pending</span>`;
@@ -615,12 +640,12 @@ function histAmt(h) {
 function renderStats() {
   const m = me(), H = API.hist;
   if (!m) { setHTML($('statsCard'), loadingCard('Your history')); return; }
-  const key = `${H.entries.length}:${H.entries[0] ? H.entries[0].id : 0}:${H.nextBefore}:${m.wallet.pending}:${m.player.boardsPlayed}:${H.loaded}`; if (key === UI.statsKey) return; UI.statsKey = key;
+  const key = `${Object.values(API.feed).map(f => f ? f.board.n : 0).join(',')}:${H.entries.length}:${H.entries[0] ? H.entries[0].id : 0}:${H.nextBefore}:${m.wallet.pending}:${m.player.boardsPlayed}:${H.loaded}`; if (key === UI.statsKey) return; UI.statsKey = key;
   const p = m.wallet.pending;
   setHTML($('statsCard'), `<h3>Your history <small>all boards</small></h3>
     <div class="mut" style="font-size:12.5px">${plural(m.player.boardsPlayed, 'board')} played to close · cap ${m.player.cap} per board${p > 0 ? ` · <span style="color:#ffd27a">${fmt(p)} pending</span>` : ''}</div>
     <div class="row" style="justify-content:space-between;margin-top:10px"><b style="font-size:13px">History <span class="mut" style="font-weight:500" id="histCount">${H.loaded ? plural(H.total, 'entry', 'entries') : 'loading…'} · newest first</span></b><button class="btn sm" data-act="csv" ${H.total ? '' : 'disabled'}>Download CSV</button></div>
-    <ul class="list hist" id="histList">${H.entries.map(h => `<li class="k-${h.kind}"><span><b>${esc(h.event)}</b><small>${[h.board ? h.board.label : '', h.square ? '#' + h.square : '', hTime(h.at), h.note].filter(Boolean).map(esc).join(' · ')}</small></span>${histAmt(h)}</li>`).join('') || `<li class="mut">${H.loaded ? 'No activity yet. Every play, win, replay, cash-out, carry and payout will be listed here.' : 'Loading…'}</li>`}</ul>
+    <ul class="list hist" id="histList">${H.entries.map(h => `<li class="k-${h.kind}"><span><b>${esc(h.event)}</b>${eaPill(h)}<small>${[h.board ? h.board.label : '', h.square ? '#' + h.square : '', hTime(h.at), h.note].filter(Boolean).map(esc).join(' · ')}</small></span>${histAmt(h)}</li>`).join('') || `<li class="mut">${H.loaded ? 'No activity yet. Every play, win, replay, cash-out, carry and payout will be listed here.' : 'Loading…'}</li>`}</ul>
     ${H.nextBefore ? `<div class="row" style="justify-content:center;margin-top:6px"><button class="btn sm ghost" data-act="histMore">Load older entries</button></div>` : ''}`);
 }
 async function downloadCSV() {
@@ -637,7 +662,7 @@ function renderNext() {
   const mine = myBoard(active).mySquares, nb = nextB(), bp = me().player.boardsPlayed;
   setHTML($('nextCard'), `<h3>Up next <small>$${active} Board #${f.board.n + 1}</small></h3>
     <div style="font-size:13.5px">Play ${EA_AT} or more of the ${GRID} squares on the open board to unlock Early Access: pre-pick squares on the next board from the <b>Next board</b> tab.</div>
-    <div class="row" style="margin-top:8px"><span class="pill ${mine >= EA_AT ? 'ok' : ''}">${mine >= EA_AT ? '⚡ Early Access unlocked' : `You: ${mine}/${EA_AT}`}</span>${nb.preCount ? `<span class="pill ok">${nb.preCount} pre-picked</span>` : ''}<span class="pill">Cap: ${capNow()} per board${bp >= 2 ? '' : ` · 40 after 2 boards (you: ${bp})`}</span></div>
+    <div class="row" style="margin-top:8px"><span class="pill ${mine >= EA_AT ? 'ok' : ''}">${mine >= EA_AT ? '⚡ Early Access unlocked' : `You: ${mine}/${EA_AT}`}</span>${nb.preCount ? `<span class="pill ok">${nb.preCount} pre-picked</span><span class="pill wait">⏳ Waiting for Board #${f.board.n} to close</span>` : ''}<span class="pill">Cap: ${capNow()} per board${bp >= 2 ? '' : ` · 40 after 2 boards (you: ${bp})`}</span></div>
     <div class="mut" style="font-size:12px;margin-top:8px">${f.next.prepicked ? `${plural(f.next.prepicked, 'square')} already pre-picked on #${f.board.n + 1}. ` : ''}Any carryover is posted on the next board when it opens. Referral bonus squares: planned.</div>`);
 }
 function renderFeed() {
@@ -738,6 +763,7 @@ async function payHold(method) {
   if (r.early) {
     await refreshAll();
     openModal('prepick', `<h2>⚡ Early Access picks locked</h2>
+      <div class="ea-wait-box">⏳ Reveals stay hidden until Board #${r.n - 1} closes${openProgress(r.stake, r.n - 1) ? `<small>${openProgress(r.stake, r.n - 1)}</small>` : ''}</div>
       <p class="sub">$${r.stake} Board #${r.n} · squares ${r.squares.map(i => '#' + (i + 1)).join(', ')} · ${fmt(r.amount)}</p>
       <div class="note">They're held for you and played the moment Board #${r.n} opens (when Board #${r.n - 1} closes). Prizes are drawn then, from that board's bag.</div>
       <div class="acts"><button class="btn pri" data-close>Done</button></div>`);
@@ -771,7 +797,7 @@ function burst() { const d = document.createElement('div'); d.className = 'big-b
 
 function shareText(kind, n) {
   if (kind === 'big') return `Hit the Big Send on Board #${n} 😳 Tip a Grok user, you might get tipped back.`;
-  if (kind === 'double') return `I tipped a random Grok user, and one tipped me back 2×! 🎲`;
+  if (kind === 'double') return `I tipped a random Grok user, and got tipped back 2×! 🎲`;
   return `Just tipped a random Grok user. My name's on Board #${n} now 👀`;
 }
 function shareBlock(kind, n) {
