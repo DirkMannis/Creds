@@ -877,15 +877,16 @@ function profileLinks(s) {
 }
 function cardHTML(b, i, touch) {
   const s = b.sq[i];
+  // Board stats only on your own squares: other players' win counts/rates are never shown.
   let plays = 0, wins = 0;
-  for (const x of b.sq) if (x && (s.o === 'me' ? x.o === 'me' : x.w === s.w)) { plays++; if (x.p === 'double' || x.p === 'big') wins++; }
+  if (s.o === 'me') for (const x of b.sq) if (x && x.o === 'me') { plays++; if (x.p === 'double' || x.p === 'big') wins++; }
   const res = s.p === 'patron' ? 'Patron' : PRIZE[s.p].label;
   const when = s.at ? ago(now() - Date.parse(s.at)) : `play ${s.k} of ${CLOSE_AT}`;
   return `${touch ? '<button class="sc-x" data-act="closeCard" aria-label="Close">×</button>' : ''}
     <div class="sc-name">${s.bot ? '🤖 ' : ''}${esc(s.n)}${s.o === 'me' ? ' <span class="mut">(you)</span>' : ''}</div>
     ${s.bot ? '<div class="sc-bot">🤖 practice player</div>' : ''}
     <div class="sc-row"><span class="sc-sq">#${i + 1}</span><span class="sc-res ${s.p}"><span class="dot ${s.p}"></span>${res}</span><span class="mut">${esc(when)}</span></div>
-    <div class="sc-stats">On this board: <b>${plural(plays, 'play')}</b> · <b>${plural(wins, 'win')}</b></div>
+    ${s.o === 'me' ? `<div class="sc-stats">You on this board: <b>${plural(plays, 'play')}</b> · <b>${plural(wins, 'win')}</b></div>` : ''}
     ${profileLinks(s)}
     ${touch ? `<div class="sc-more"><button class="btn sm" data-act="cardMore" data-i="${i}">Details</button></div>` : ''}`;
 }
@@ -941,6 +942,7 @@ function tileModal(i) {
   const w = s.o === 'me' && me() ? me().wins.find(x => x.stake === b.stake && x.n === b.n && x.i === i) : null;
   openModal('tile', `<h2>Square #${i + 1}</h2><p class="sub">${label(b.stake, b.n)}</p>
     <dl class="kv"><dt>Player</dt><dd>${s.bot ? '🤖 ' : ''}${esc(s.n)}${s.o === 'me' ? ' (you)' : ''}</dd><dt>Result</dt><dd><span class="dot ${s.p}"></span>${PRIZE[s.p].label}</dd><dt>Drawn</dt><dd>Play ${s.k} of ${CLOSE_AT}</dd>
+    ${s.bot ? '<dt>Type</dt><dd>🤖 practice player</dd>' : ''}${s.o === 'me' ? (() => { let n = 0, wn = 0; for (const x of b.sq) if (x && x.o === 'me') { n++; if (x.p === 'double' || x.p === 'big') wn++; } return `<dt>You on this board</dt><dd>${plural(n, 'play')} · ${plural(wn, 'win')}</dd>`; })() : ''}
     ${w ? `<dt>Unlocked</dt><dd>${fmt(w.unlocked)} of ${fmt(w.amount)}</dd>` : ''}</dl>
     ${s.o === 'me' ? shareBlock(s.p === 'host' ? 'patron' : s.p, b.n) : ''}
     <div class="acts"><button class="btn" data-close>Close</button></div>`);
