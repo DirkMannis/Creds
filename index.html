@@ -290,8 +290,8 @@ body.stale .grid{opacity:.72}
 </head>
 <body>
 <div class="testbar" role="status">FREE BETA — play money, no real tips</div>
-<div class="netbar loading" id="netbar" role="status" aria-live="polite">Loading the shared board…</div>
-<div class="notice" id="resetNotice" role="status" hidden><span>🔄 <b>Beta reset: boards are now shared. Everyone sees the same board.</b> Earlier local-only boards and wallets were cleared.</span><button class="btn sm" data-act="dismissNotice">Got it</button></div>
+<div class="netbar loading" id="netbar" role="status" aria-live="polite">Loading the multiplayer board…</div>
+<div class="notice" id="resetNotice" role="status" hidden><span>🔄 <b>Beta reset: boards are now multiplayer. Everyone sees the same board.</b> Earlier local-only boards and wallets were cleared.</span><button class="btn sm" data-act="dismissNotice">Got it</button></div>
 
 <header class="top">
   <div class="brand">
@@ -540,12 +540,12 @@ function renderTabs() {
 }
 function renderHead() {
   const b = cur();
-  if (!b) { setHTML($('boardHead'), `<div><div class="board-title">$${active} board <span class="sq">· ${GRID} squares</span></div><div class="mut" style="font-size:12.5px">${API.net === 'loading' ? 'Loading the shared board…' : 'Waiting for the server…'}</div></div>`); return; }
+  if (!b) { setHTML($('boardHead'), `<div><div class="board-title">$${active} board <span class="sq">· ${GRID} squares</span></div><div class="mut" style="font-size:12.5px">${API.net === 'loading' ? 'Loading the multiplayer board…' : 'Waiting for the server…'}</div></div>`); return; }
   if (UI.view === 'next') return renderNextHead();
   const nextM = (Math.floor(b.plays / MILESTONE) + 1) * MILESTONE;
   setHTML($('boardHead'), `
     <div>
-      <div class="board-title">$${b.stake} Board #${b.n} <span class="sq">· ${GRID} squares</span><span class="shared" title="Everyone sees the same board">👥 Shared</span>${botPill()}</div>
+      <div class="board-title">$${b.stake} Board #${b.n} <span class="sq">· ${GRID} squares</span><span class="shared" title="Everyone sees the same board">👥 Multiplayer</span>${botPill()}</div>
       <div class="mut" style="font-size:12.5px">$${b.stake} per square · ${b.carryIn > 0 ? `<b style="color:var(--big)">Carryover ${fmt(b.carryIn)}</b> rides on the first Big Send · ` : ''}closes when ${CLOSE_AT} squares are played or after 5 days</div>
     </div>
     <div class="stats">
@@ -559,7 +559,7 @@ function renderHead() {
 }
 function botPill() {
   const f = feed(), bt = f && f.bots; if (!bt) return '';
-  return bt.on ? `<span class="botpill" title="${esc(BOT_NOTE)}">🤖 Practice players on</span>` : '';
+  return bt.on ? `<span class="botpill" title="${esc(BOT_NOTE)}">🤖 Practice players on - during beta only</span>` : '';
 }
 function renderNextHead() {
   const f = feed(), nb = nextB(), mine = myBoard(active).mySquares, cap = capNow(), n = f.board.n;
@@ -683,7 +683,7 @@ const fairUrl = (stake, n) => `/fair?stake=${stake}&n=${n}`;
 function renderMe() { $('meChip').textContent = me() ? (me().player.handleKind === 'x' ? '𝕏 ' : '🎭 ') + meName() : '…'; }
 function renderNet() {
   const el = $('netbar'); if (!el) return;
-  const msg = API.net === 'loading' ? 'Loading the shared board…' : API.net === 'offline' ? 'You’re offline. Showing the last board we loaded; reconnecting…' : API.net === 'error' ? (API.netMsg || 'Can’t reach the server right now. Retrying…') : '';
+  const msg = API.net === 'loading' ? 'Loading the multiplayer board…' : API.net === 'offline' ? 'You’re offline. Showing the last board we loaded; reconnecting…' : API.net === 'error' ? (API.netMsg || 'Can’t reach the server right now. Retrying…') : '';
   el.hidden = !msg; el.className = 'netbar ' + API.net; el.textContent = msg;
   document.body.classList.toggle('stale', API.net === 'offline' || API.net === 'error');
 }
@@ -697,7 +697,7 @@ function closeModal(kind) { if (kind && UI.modal !== kind) return; UI.modal = nu
 function onboarding(edit) {
   const m = me(), game = m && m.player.handleKind === 'game' ? m.player.name : '';
   openModal('name', `<h2>${edit ? 'Your display name' : 'Welcome to the free beta 🎲'}</h2>
-    <p class="sub">${edit ? 'Pick how your tiles are labeled.' : 'This is a free, play-money beta: 500 squares, 400 get played, and everyone plays on the same shared board. Nothing is charged or sent. Pick how your tiles are labeled:'}</p>
+    <p class="sub">${edit ? 'Pick how your tiles are labeled.' : 'This is a free, play-money beta: 500 squares, 400 get played, and everyone plays on the same multiplayer board. Nothing is charged or sent. Pick how your tiles are labeled:'}</p>
     <label class="choice off" title="Coming soon"><input type="radio" name="mode" value="x" disabled><div class="f"><b>Use my X handle</b> <span class="mut">(coming with Sign in with X. Typed @handles aren't shown until then.)</span></div></label>
     <label class="choice ${game ? 'on' : ''}"><input type="radio" name="mode" value="game" ${game ? 'checked' : ''}><div class="f"><b>Use an in-game handle</b> <span class="mut">(screened: no slurs, gross stuff, “official”, or lookalikes)</span><input type="text" id="nmG" placeholder="e.g. NightOwl_42" value="${esc(game)}" maxlength="15"></div></label>
     <label class="choice ${game ? '' : 'on'}"><input type="radio" name="mode" value="anon" ${game ? '' : 'checked'}><div class="f"><b>Stay anonymous</b> <span class="mut">(your tiles show “${esc(m && !game ? m.player.name : 'Player 0123')}”)</span></div></label>
@@ -908,7 +908,7 @@ function nextSummary() { if (UI.modal || UI.animating || !UI.summaryQ.length || 
 /* ===== Rules drawer ===== */
 function rulesHTML() {
   return `<p class="mut">Draft v0.3 for review · FREE BETA: play money, no real tips.</p>
-  <h4>What it is</h4><ul><li>Tip a random Grok user, and tippers get a chance to be tipped back 2×.</li><li>Every paid square puts your name on the board. Tips route through the host, so nobody sees who tipped whom.</li><li>Boards are shared: everyone sees the same board, live.</li></ul>
+  <h4>What it is</h4><ul><li>Tip a random Grok user, and tippers get a chance to be tipped back 2×.</li><li>Every paid square puts your name on the board. Tips route through the host, so nobody sees who tipped whom.</li><li>Boards are multiplayer: everyone sees the same board, live.</li></ul>
   <h4>The board</h4><ul><li>Each board has <b>500 squares</b> (20 wide × 25 tall). You pick which ones you want.</li><li><b>400</b> of them get played. The board closes at 400 (or after 5 days), so the other 100 always stay unselected and there's room to choose your spot right up to the end.</li></ul>
   <h4>The bag (400 prizes per board)</h4>
   <table><tr><th>Prize</th><th>Count</th><th>Pays ($5)</th></tr>
@@ -947,7 +947,7 @@ async function adminRefresh() {
 }
 function renderDev() {
   const f = feed(), m = me(), p = $('devPanel');
-  if (!$('devInfo')) p.innerHTML = '<h4>DEV · shared-board beta</h4><div id="devInfo"></div><div id="devAdmin"></div>';
+  if (!$('devInfo')) p.innerHTML = '<h4>DEV · multiplayer beta</h4><div id="devInfo"></div><div id="devAdmin"></div>';
   setHTML($('devInfo'), `<div class="grp"><table>
     <tr><td>Player</td><td>${m ? '#' + m.player.id + ' · ' + esc(m.player.name) : '…'}</td></tr>
     <tr><td>Board</td><td>${f ? `${label(f.board.stake, f.board.n)} · v${esc(f.board.version)}` : '…'}</td></tr>

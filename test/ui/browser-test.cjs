@@ -73,7 +73,7 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     check('old local game state (grokTipBoard.v1) cleared', await p.evaluate(() => localStorage.getItem('grokTipBoard.v1') === null));
     check('netbar hides once loaded', await waitFor(() => p.$eval('#netbar', e => e.hidden)));
     const notice = await p.$eval('#resetNotice', e => !e.hidden && e.innerText);
-    check('one-time notice: "Beta reset: boards are now shared. Everyone sees the same board."', notice && notice.includes('Beta reset: boards are now shared. Everyone sees the same board.'));
+    check('one-time notice: "Beta reset: boards are now multiplayer. Everyone sees the same board."', notice && notice.includes('Beta reset: boards are now multiplayer. Everyone sees the same board.'));
     await waitFor(() => p.$('.modal[data-kind=name]'));
     check('onboarding: X handle option is disabled until Sign in with X', await p.$eval('input[name=mode][value=x]', e => e.disabled));
     check('onboarding: no typed @handle field', !(await p.$('#nmX')));
