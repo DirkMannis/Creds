@@ -27,11 +27,11 @@ export function buildTickets(bag = BAG) {
 }
 
 /** Deterministic, unbiased integer stream seeded by the (secret) salt. */
-function seededRng(salt) {
+function seededRng(salt, label = 'shuffle') {
   let counter = 0, buf = Buffer.alloc(0), off = 0;
   const next32 = () => {
     if (off + 4 > buf.length) {
-      buf = createHmac('sha256', salt).update(`shuffle:${counter++}`).digest();
+      buf = createHmac('sha256', salt).update(`${label}:${counter++}`).digest();
       off = 0;
     }
     const v = buf.readUInt32BE(off); off += 4; return v;
@@ -44,8 +44,8 @@ function seededRng(salt) {
 }
 
 /** Fisher-Yates shuffle driven by the salt. Same salt -> same order. */
-export function shuffleWithSalt(tickets, salt) {
-  const a = tickets.slice(), rnd = seededRng(salt);
+export function shuffleWithSalt(tickets, salt, label = 'shuffle') {
+  const a = tickets.slice(), rnd = seededRng(salt, label);
   for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
@@ -76,3 +76,12 @@ export const countsOf = order => {
   for (const k of order) c[k]++;
   return c;
 };
+
+/** Unselected prizes on an early close: remaining prize tickets placed on empty squares, using
+ *  HMAC(salt, "unselected:i") so anyone can re-check the positions once the salt is revealed. */
+export function unselectedSpots(salt, emptySquares, bagLeft) {
+  const tickets = [];
+  for (const k of ['double', 'big', 'host']) for (let i = 0; i < (bagLeft[k] || 0); i++) tickets.push(k);
+  const spots = shuffleWithSalt(emptySquares.slice().sort((a, b) => a - b), salt, 'unselected');
+  return tickets.map((p, i) => ({ i: spots[i], p })).filter(x => x.i !== undefined);
+}
