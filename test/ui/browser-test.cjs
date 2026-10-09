@@ -72,20 +72,28 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     await waitFor(() => p.evaluate(() => !!(window.__tip.API.me && window.__tip.API.feed[5])));
     check('old local game state (grokTipBoard.v1) cleared', await p.evaluate(() => localStorage.getItem('grokTipBoard.v1') === null));
     check('netbar hides once loaded', await waitFor(() => p.$eval('#netbar', e => e.hidden)));
-    const notice = await p.$eval('#resetNotice', e => !e.hidden && e.innerText);
-    check('one-time notice: "Beta reset: boards are now multiplayer. Everyone sees the same board."', notice && notice.includes('Beta reset: boards are now multiplayer. Everyone sees the same board.'));
+    check('headline banner hidden while HEADLINE is empty', await p.$eval('#headline', e => e.hidden));
     await waitFor(() => p.$('.modal[data-kind=name]'));
     check('onboarding: X handle option is disabled until Sign in with X', await p.$eval('input[name=mode][value=x]', e => e.disabled));
     check('onboarding: no typed @handle field', !(await p.$('#nmX')));
     await onboard(p);
+    const wl = await waitFor(() => p.$eval('#welcomeLine', e => e.innerText).catch(() => ''));
+    check('welcome line for a brand-new player (0 plays, $0)', /Free beta: every square is on us/.test(wl || ''), wl);
     const name = await p.$eval('#walletName', e => e.textContent);
     check('wallet header shows the API name ("Player 0123" style)', /^Player \d{4,}$/.test(name), name);
     check('no hardcoded @DirkMannis anywhere', !(await text(p)).includes('DirkMannis'));
+    await p.evaluate(() => window.__tip.setHeadline({ id: 'test-1', emoji: '📣', text: 'Test headline one.', sub: 'Details.' }));
+    check('headline banner shows when configured', await p.$eval('#headline', e => !e.hidden && e.innerText.includes('Test headline one.')));
     await p.click('[data-act=dismissNotice]');
-    check('notice dismissed', await p.$eval('#resetNotice', e => e.hidden));
+    check('headline dismissed', await p.$eval('#headline', e => e.hidden));
+    await p.evaluate(() => window.__tip.setHeadline({ id: 'test-1', text: 'Test headline one.' }));
+    check('same headline id stays dismissed', await p.$eval('#headline', e => e.hidden));
+    await p.evaluate(() => window.__tip.setHeadline({ id: 'test-2', text: 'Test headline two.' }));
+    check('a new headline id shows again', await p.$eval('#headline', e => !e.hidden && e.innerText.includes('Test headline two.')));
+    await p.evaluate(() => window.__tip.setHeadline(null));
     p.off('request', slowH); await p.setRequestInterception(false);
     await p.reload({ waitUntil: 'load' }); await waitFor(() => p.evaluate(() => !!window.__tip.API.me));
-    check('notice stays dismissed after reload (one-time)', await p.$eval('#resetNotice', e => e.hidden));
+    check('headline stays hidden after reload (config empty)', await p.$eval('#headline', e => e.hidden));
     check('no onboarding again after reload', !(await p.$('.modal[data-kind=name]')));
     check('same player after reload (token kept in localStorage)', (await p.$eval('#walletName', e => e.textContent)) === name);
     A = p;
@@ -156,6 +164,13 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     check('other browser sees the plays within one poll (≤ 6 s)', seen);
     check('other browser does not mark them as its own', !/mine/.test(await tileCls(B, 0)));
     check('tile title names the player from the API', (await tileTitle(B, 0)).includes(aName), await tileTitle(B, 0));
+    check('welcome line hidden after the first play', await waitFor(async () => !(await A.$('#welcomeLine')), 4000));
+    await B.hover('#grid > div[data-i="0"]');
+    const card = await waitFor(() => B.$eval('#sqCard', e => !e.hidden && e.innerText).catch(() => ''), 3000);
+    check('desktop: hover shows the square card', !!card && card.includes(aName) && card.includes('#1') && /On this board: 3 plays/.test(card), card);
+    check('desktop: hover card does not block clicks', await B.$eval('#sqCard', e => getComputedStyle(e).pointerEvents === 'none'));
+    await B.mouse.move(5, 5); await sleep(150);
+    check('desktop: card hides when the pointer leaves the grid', await B.$eval('#sqCard', e => e.hidden));
     const bm2 = await manual(B, '3');
     check('manual entry refuses a square already played (server state)', bm2.bad && /#3 is already played/.test(bm2.text), bm2.text);
     // B plays, A sees it
@@ -193,6 +208,14 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     const m = await manual(C, String(free));
     check('UI blocks picks past the cap', m.bad && /cap of 20/.test(m.text), m.text);
     check('header shows 20/20', /20<\/b>\/20/.test(await C.$eval('#boardHead', e => e.innerHTML)));
+    const vet = await C.evaluate(() => window.__tip.veteranSquares());
+    check('veteran shine: a 20-play player\'s squares are eligible', vet.length >= 20, String(vet.length));
+    const sh = await C.evaluate(() => { const i = window.__tip.shineNow(); return { i, on: i !== null && document.querySelector(`#grid > div[data-i="${i}"]`).dataset.shine === '1', all: document.querySelectorAll('#grid > div[data-shine]').length }; });
+    check('veteran shine: exactly one eligible square glows', sh.on && sh.all === 1 && vet.includes(sh.i), JSON.stringify(sh));
+    check('veteran shine: glow ends after ~1.5 s', await waitFor(() => C.evaluate(() => !document.querySelector('#grid > div[data-shine]')), 3000));
+    await C.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+    check('veteran shine: off with prefers-reduced-motion', (await C.evaluate(() => window.__tip.shineNow())) === null);
+    await C.emulateMediaFeatures([]);
     const pid = (await call('/api/me', { token: tok })).body.player.id;
     await call(`/__test/boardsPlayed?player=${pid}&n=2`);
     await C.evaluate(() => window.__tip.refreshAll());
@@ -339,6 +362,15 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     check('mobile: no horizontal scroll', lay.sw <= 390, JSON.stringify(lay));
     check('mobile: grid fits the screen, 20 columns', lay.gw <= 390 && lay.cols === 20, JSON.stringify(lay));
     await M.screenshot({ path: SHOTS + '10-mobile-board.png' });
+    const played = await M.evaluate(() => { const t = document.querySelector('#grid > div.patron, #grid > div.double, #grid > div.big, #grid > div.host'); return t ? t.dataset.i : null; });
+    if (played !== null) {
+      // A real touch pointerdown + click on the exact tile (Chrome's touch adjustment can shift a synthetic tap to a 15px neighbour).
+      await M.$eval(`#grid > div[data-i="${played}"]`, e => { e.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); e.click(); }); await sleep(200);
+      const mc = await M.evaluate(() => ({ card: !document.getElementById('sqCard').hidden && document.getElementById('sqCard').innerText, modal: !!document.querySelector('.modal') }));
+      check('touch: first tap shows the square card (no modal)', !!mc.card && !mc.modal && mc.card.includes('#' + (+played + 1)), JSON.stringify(mc));
+      await M.$eval('#sqCard [data-act=closeCard]', e => e.click()); await sleep(150);
+      check('touch: close × dismisses the card', await M.$eval('#sqCard', e => e.hidden));
+    } else check('touch: a played square exists for the tap test', false);
     await (await M.$('#walletCard')).scrollIntoView(); await sleep(200);
     await M.screenshot({ path: SHOTS + '10-mobile-wallet.png' });
     await (await M.$('#statsCard')).scrollIntoView(); await sleep(200);
@@ -393,6 +425,8 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
       legend: document.querySelector('.legend').innerText, feedNote: document.getElementById('feedCard').innerText }));
     check('bots: tiles are labeled 🤖 (class + patron icon + title)', ui.botTiles >= 60 && ui.patronBots && /🤖 .*practice player/.test(ui.title), JSON.stringify({ n: ui.botTiles, t: ui.title }));
     check('bots: header pill says practice players are on', /🤖 Practice players on/.test(ui.pill), ui.pill);
+    const botVet = await D.evaluate(() => { const f = window.__tip.API.feed[window.__tip.active]; const v = new Set(window.__tip.veteranSquares()); return f.squares.filter(([i, , , w]) => f.who[w] && f.who[w].bot && v.has(i)).length; });
+    check('veteran shine: bots never shine', botVet === 0, String(botVet));
     check('bots: latest flips label them 🤖', /🤖/.test(ui.flips) && /practice player/.test(ui.feedNote));
     check('bots: legend explains 🤖', /🤖\s*Practice player/.test(ui.legend), ui.legend);
     await D.click('#devToggle'); await sleep(100);

@@ -266,7 +266,7 @@ body.stale .grid{opacity:.72}
 .tile.patron.bot::after{content:none}
 .mini .tile.bot::after{content:none}
 .lg.bot{background:#2b3550;width:auto;height:auto;padding:0 2px;font-style:normal;font-size:10px;line-height:11px}
-.botpill{margin-left:6px;font-size:11.5px;font-weight:700;color:#c6d1ee;background:#1b2030;border:1px solid #3a4562;border-radius:999px;padding:2px 8px;vertical-align:middle;cursor:help}
+.botpill{margin-left:6px;font-size:11.5px;font-weight:700;color:#c6d1ee;background:#1b2030;border:1px solid #3a4562;border-radius:999px;padding:2px 8px;vertical-align:middle;cursor:help;display:inline-block;white-space:nowrap}
 .toast.slow{border-color:#7a5a20;background:#2a2112}
 .devpanel select{padding:4px 6px;background:#0e0709;border-color:#4a1e28;font-size:12px}
 .devpanel .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -286,12 +286,39 @@ body.stale .grid{opacity:.72}
 .grid.locked .tile.pre{opacity:1;filter:none}
 .lg.pre{display:inline-block}
 
+/* Square info card (hover on desktop, first tap on touch) */
+.sqcard{position:fixed;z-index:70;width:236px;background:linear-gradient(180deg,#1a2030,#11151f);border:1px solid #3a4562;border-radius:12px;padding:10px 12px;box-shadow:0 14px 40px rgba(0,0,0,.55);font-size:12.5px;pointer-events:none}
+.sqcard[hidden]{display:none}
+.sqcard.touch{pointer-events:auto;width:min(270px,calc(100vw - 16px))}
+.sqcard .sc-name{font-weight:800;font-size:14px;padding-right:18px;word-break:break-word}
+.sqcard .sc-bot{color:#9fb3ff;font-size:11.5px;margin-top:1px}
+.sqcard .sc-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.sqcard .sc-sq{font-weight:800;color:#ffd27a}
+.sqcard .sc-res{font-weight:700}
+.sqcard .sc-stats{margin-top:6px;color:#c9d2ea}
+.sqcard .sc-links{margin-top:8px;padding-top:7px;border-top:1px solid #262e44;font-size:11.5px}
+.sqcard .sc-link{display:flex;gap:6px;align-items:center}
+.sqcard .sc-link a{color:#9fb3ff}
+.sqcard .sc-link .ver{color:#4ad18a;font-weight:800}
+.sqcard .sc-x{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--mut);font-size:18px;line-height:1;cursor:pointer;padding:4px}
+.sqcard .sc-more{margin-top:8px;display:flex;justify-content:flex-end}
+/* Welcome line for brand-new players */
+.welcome-line{font-size:12.5px;font-weight:600;color:#ffd27a;background:#2a2108;border:1px solid #7a5a10;border-radius:10px;padding:7px 10px;margin:0 0 10px;line-height:1.4}
+.welcome-line.mob-only{display:none}
+@media (max-width:700px){.welcome-line.mob-only{display:block;flex-basis:100%;margin-bottom:6px}}
+
+/* Veteran shine: soft gold glow, ~1.5 s; off for reduced motion */
+.tile[data-shine]{animation:vetshine 1.5s ease-in-out 1;z-index:1}
+@keyframes vetshine{0%{box-shadow:0 0 0 0 rgba(255,205,90,0);filter:none}45%{box-shadow:0 0 10px 3px rgba(255,205,90,.75),0 0 0 2px rgba(255,220,130,.9) inset;filter:brightness(1.25)}100%{box-shadow:0 0 0 0 rgba(255,205,90,0);filter:none}}
+@media (prefers-reduced-motion: reduce){.tile[data-shine]{animation:none}}
+
 </style>
 </head>
 <body>
 <div class="testbar" role="status">FREE BETA — play money, no real tips</div>
 <div class="netbar loading" id="netbar" role="status" aria-live="polite">Loading the multiplayer board…</div>
-<div class="notice" id="resetNotice" role="status" hidden><span>🔄 <b>Beta reset: boards are now multiplayer. Everyone sees the same board.</b> Earlier local-only boards and wallets were cleared.</span><button class="btn sm" data-act="dismissNotice">Got it</button></div>
+<div class="notice" id="headline" role="status" hidden></div>
+<div class="sqcard" id="sqCard" hidden></div>
 
 <header class="top">
   <div class="brand">
@@ -372,9 +399,20 @@ body.stale .grid{opacity:.72}
    localStorage keeps just the anonymous session token and a few UI flags. */
 /* ===== Constants (display only; the server enforces the rules) ===== */
 const TOKEN_KEY = 'grokTipBoard.token', OLD_KEY = 'grokTipBoard.v1', DEVKEY = 'grokTipBoard.dev';
-const NOTICE_KEY = 'grokTipBoard.sharedNotice', ONB_KEY = 'grokTipBoard.onboarded', SEEN_KEY = 'grokTipBoard.seenClosed', ACTIVE_KEY = 'grokTipBoard.active';
+const HEADLINE_KEY = 'grokTipBoard.headlineDismissed', OLD_NOTICE_KEY = 'grokTipBoard.sharedNotice', ONB_KEY = 'grokTipBoard.onboarded', SEEN_KEY = 'grokTipBoard.seenClosed', ACTIVE_KEY = 'grokTipBoard.active';
 const GRID = 500, CLOSE_AT = 400, MILESTONE = 20, BIG_UNLOCK = 100, EA_AT = 10, MANUAL_MAX = 5;
 const NUDGE = 'Enjoying it? Real-tip boards are coming. Your full history log stays here.';
+/* Announcement headline banner. One config: set { id, emoji, text, sub } to show it; null (or no text) = hidden.
+   Dismissal is remembered per id, so a new announcement (new id) shows again for everyone. */
+let HEADLINE = null;
+// e.g. HEADLINE = { id: '2026-10-multiplayer', emoji: '🔄', text: 'Beta reset: boards are now multiplayer. Everyone sees the same board.', sub: 'Earlier local-only boards and wallets were cleared.' };
+
+/* Profile links on the square card. One slot per player: a verified-handle row plus one profile link.
+   Add a type here to support it (e.g. claude, dots, muse); the card renders whatever the API sends as who.links. */
+const LINK_TYPES = {
+  x: { label: 'X', icon: '𝕏', href: l => l.url || `https://x.com/${encodeURIComponent(String(l.handle || '').replace(/^@/, ''))}` },
+  linkfo: { label: 'Linkfo', icon: '🔗', href: l => l.url || '' },
+};
 const BOT_NOTE = 'Beta boards include labeled 🤖 practice players so boards close; removed before real money.';
 const ADMIN_KEY_SS = 'grokTipBoard.adminKey'; // sessionStorage only: gone when this tab closes
 const DAY = 864e5, HOLD_MIN = 5;
@@ -387,7 +425,7 @@ const PRIZE = {
 
 /* ===== State ===== */
 const API = { feed: {}, me: null, hist: { entries: [], total: 0, nextBefore: null, loaded: false, key: '' }, net: 'loading', netMsg: '', skew: 0, lastPoll: 0, failures: 0 };
-const UI = { sel: new Set(), revealing: new Set(), mineNew: {}, animating: false, summaryQ: [], deferred: [], modal: null, view: 'open', eaPick: false, busy: false, statsKey: '' };
+const UI = { sel: new Set(), revealing: new Set(), mineNew: {}, animating: false, summaryQ: [], deferred: [], modal: null, card: null, view: 'open', eaPick: false, busy: false, statsKey: '' };
 let token = null, active = 5;
 const DEV_ON = (() => { try { const q = new URLSearchParams(location.search).get('dev'); if (q === '1') localStorage.setItem(DEVKEY, '1'); if (q === '0') localStorage.removeItem(DEVKEY); return localStorage.getItem(DEVKEY) === '1'; } catch { return false; } })();
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { } }, del: k => { try { localStorage.removeItem(k); } catch { } } };
@@ -466,7 +504,7 @@ function cur() {
   const f = feed(); if (!f) return null;
   const b = f.board, mb = myBoard(active), mine = new Set(mb.n === b.n ? mb.squares : []);
   const sq = Array(GRID).fill(null);
-  for (const [i, k, p, w] of f.squares) { const who = f.who[w] || { name: 'Player' }; sq[i] = { o: mine.has(i) ? 'me' : 'x', n: who.name, bot: who.bot, p, k }; }
+  for (const [i, k, p, w] of f.squares) { const who = f.who[w] || { name: 'Player' }; sq[i] = { o: mine.has(i) ? 'me' : 'x', n: who.name, bot: who.bot, p, k, w, at: who.at || null, links: who.links || null }; }
   const ov = UI.mineNew[active]; let extra = 0;
   if (ov && ov.n === b.n) for (const [i, v] of ov) if (!sq[i]) { sq[i] = { o: 'me', n: meName(), p: v.p, k: v.k }; mine.add(i); extra++; }
   const h = myHold(), myHeld = h && !h.early && h.stake === b.stake && h.n === b.n ? new Set(h.squares) : new Set();
@@ -586,7 +624,7 @@ function renderSelbar() {
   if (b.next && !picking()) { const left = EA_AT - myBoard(active).mySquares; setHTML(bar, `<div class="info mut">🔒 Board #${b.n} opens when Board #${b.n - 1} closes. ${eaOK() ? 'Tap <b>⚡ Early Access: pick now</b> to pre-pick squares.' : `Play ${plural(left, 'more square')} on Board #${b.n - 1} for Early Access.`}</div>`); return; }
   if (!n && b.next) { setHTML(bar, `<div class="info mut">Tap empty squares or type their numbers above to pick them (you can hold up to <b>${Math.max(0, cap - mine)}</b> more on this board). <span style="color:#ffd27a">⏳ They play when Board #${b.n - 1} closes; reveals stay hidden until then.</span></div>
     <div class="acts"><button class="btn sm" data-act="quickPick" data-n="5" ${cap - mine < 1 ? 'disabled' : ''}>Quick pick 5</button></div>`); return; }
-  if (!n) { setHTML(bar, `<div class="info mut">Tap empty squares or type their numbers above to pick them (you can hold up to <b>${Math.max(0, cap - mine)}</b> more on this board). ${unlocked() >= b.stake ? `You have <b style="color:var(--dbl)">${fmt(unlocked())}</b> unlocked to Replay.` : ''}</div>
+  if (!n) { setHTML(bar, `${isNewPlayer() ? `<div class="welcome-line mob-only">${WELCOME}</div>` : ''}<div class="info mut">Tap empty squares or type their numbers above to pick them (you can hold up to <b>${Math.max(0, cap - mine)}</b> more on this board). ${unlocked() >= b.stake ? `You have <b style="color:var(--dbl)">${fmt(unlocked())}</b> unlocked to Replay.` : ''}</div>
     <div class="acts"><button class="btn sm" data-act="quickPick" data-n="5" ${cap - mine < 1 ? 'disabled' : ''}>Quick pick 5</button></div>`); return; }
   setHTML(bar, `<div class="info"><b>${n}</b> selected · <b>${fmt(n * b.stake)}</b> <span class="mut">(${fmt(b.stake)} × ${n}) · ${mine + n}/${cap} of your cap</span></div>
     <div class="acts"><button class="btn ghost sm" data-act="clearSel">Clear</button><button class="btn pri" data-act="hold" ${UI.busy ? 'disabled' : ''}>${b.next ? 'Hold Early Access picks →' : 'Hold &amp; get tip code →'}</button></div>`);
@@ -620,6 +658,7 @@ function renderWallet() {
   const eaPending = (m.prepicks || []).filter(pp => eaWaiting(pp.stake, pp.n)).map(pp => `<div class="ea-wait-line">⏳ <b>${plural(pp.count, 'Early Access pick')}</b> on ${esc(label(pp.stake, pp.n))} <span class="pill wait">Waiting for Board #${pp.n - 1} to close</span></div>`);
   const keep = m.player.keepBalance;
   setHTML($('walletCard'), `<h3>Your wallet <small id="walletName">${esc(m.player.name)}</small></h3>
+    ${isNewPlayer() ? `<div class="welcome-line" id="welcomeLine">${WELCOME}</div>` : ''}
     <div class="wal"><div class="u"><small>Unlocked</small><b id="walUnlocked">${fmt(u)}</b></div><div class="p"><small>Pending</small><b id="walPending">${fmt(p)}</b></div></div>
     ${carried.join('')}${eaPending.join('')}
     <div class="row"><button class="btn good sm" data-act="replayHint" ${u < 5 ? 'disabled' : ''}>Replay</button><button class="btn sm" data-act="cashOut" ${u <= 0 || UI.busy ? 'disabled' : ''}>Cash out</button><span class="mut" style="font-size:12px">or hold it</span></div>
@@ -687,7 +726,10 @@ function renderNet() {
   el.hidden = !msg; el.className = 'netbar ' + API.net; el.textContent = msg;
   document.body.classList.toggle('stale', API.net === 'offline' || API.net === 'error');
 }
-function renderNotice() { const el = $('resetNotice'); if (el) el.hidden = !!ls.get(NOTICE_KEY); }
+function renderNotice() { const el = $('headline'); if (!el) return; const h = HEADLINE;
+  const show = !!(h && h.id && h.text) && ls.get(HEADLINE_KEY) !== String(h.id);
+  el.hidden = !show; el.innerHTML = show ? `<span>${h.emoji ? esc(h.emoji) + ' ' : ''}<b>${esc(h.text)}</b>${h.sub ? ' ' + esc(h.sub) : ''}</span><button class="btn sm" data-act="dismissNotice">Got it</button>` : ''; }
+function setHeadline(h) { HEADLINE = h || null; renderNotice(); }
 function renderAll() { renderNet(); renderGrid(); renderSelbar(); if (UI.animating) return; renderTabs(); renderViewTog(); renderHead(); renderPot(); renderWallet(); renderStats(); renderNext(); renderFeed(); renderArchive(); renderMe(); if (DEV_ON && !$('devPanel').hidden) renderDev(); }
 
 /* ===== Modals ===== */
@@ -818,6 +860,82 @@ function resultModal(stake, n, results, method, amt) {
     <div class="mut" style="font-size:12.5px">Share it:</div>${shareBlock(best, n)}
     <div class="acts"><button class="btn pri" data-close>Back to the board</button></div>`);
 }
+/* ===== Square info card (hover on desktop, first tap on touch) ===== */
+const WELCOME = '🎲 Free beta: every square is on us. Pick squares, then tap “Simulate payment received”. Your wallet fills up only when you win.';
+const isNewPlayer = () => { const m = me(); return !!m && m.historyEntries === 0 && m.wallet.unlocked === 0 && m.wallet.pending === 0 && !Object.values(m.boards || {}).some(b => b.mySquares > 0); };
+let lastPointer = 'mouse';
+const isTouch = () => lastPointer === 'touch' || lastPointer === 'pen' || matchMedia('(pointer: coarse)').matches;
+const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`; };
+function profileLinks(s) {
+  if (s.bot) return '';
+  const ls2 = (s.links || []).filter(l => LINK_TYPES[l.type]);
+  if (!ls2.length) return `<div class="sc-links mut">Profile links coming with sign-in</div>`;
+  const ver = ls2.find(l => l.verified), link = ls2.find(l => l !== ver) || null;
+  const row = (l, verified) => { const T = LINK_TYPES[l.type], href = T.href(l);
+    return `<div class="sc-link"><span class="ic">${T.icon}</span>${href ? `<a href="${esc(href)}" target="_blank" rel="noopener nofollow">${esc(l.handle || T.label)}</a>` : esc(l.handle || T.label)}${verified ? ' <span class="ver" title="Verified">✓</span>' : ` <span class="mut">${T.label}</span>`}</div>`; };
+  return `<div class="sc-links">${ver ? row(ver, true) : ''}${link ? row(link, false) : ''}</div>`;
+}
+function cardHTML(b, i, touch) {
+  const s = b.sq[i];
+  let plays = 0, wins = 0;
+  for (const x of b.sq) if (x && (s.o === 'me' ? x.o === 'me' : x.w === s.w)) { plays++; if (x.p === 'double' || x.p === 'big') wins++; }
+  const res = s.p === 'patron' ? 'Patron' : PRIZE[s.p].label;
+  const when = s.at ? ago(now() - Date.parse(s.at)) : `play ${s.k} of ${CLOSE_AT}`;
+  return `${touch ? '<button class="sc-x" data-act="closeCard" aria-label="Close">×</button>' : ''}
+    <div class="sc-name">${s.bot ? '🤖 ' : ''}${esc(s.n)}${s.o === 'me' ? ' <span class="mut">(you)</span>' : ''}</div>
+    ${s.bot ? '<div class="sc-bot">🤖 practice player</div>' : ''}
+    <div class="sc-row"><span class="sc-sq">#${i + 1}</span><span class="sc-res ${s.p}"><span class="dot ${s.p}"></span>${res}</span><span class="mut">${esc(when)}</span></div>
+    <div class="sc-stats">On this board: <b>${plural(plays, 'play')}</b> · <b>${plural(wins, 'win')}</b></div>
+    ${profileLinks(s)}
+    ${touch ? `<div class="sc-more"><button class="btn sm" data-act="cardMore" data-i="${i}">Details</button></div>` : ''}`;
+}
+let cardT = null;
+function showCard(i, touch) {
+  const b = cur(), s = b && b.sq[i], el = $('sqCard'), tile = tiles[i]; if (!s || !el || !tile || UI.view === 'next' || UI.modal) return;
+  UI.card = i; el.innerHTML = cardHTML(b, i, touch); el.classList.toggle('touch', !!touch); el.hidden = false;
+  const r = tile.getBoundingClientRect(), cw = el.offsetWidth, ch = el.offsetHeight, m = 8;
+  let x = r.right + m, y = r.top + r.height / 2 - ch / 2;
+  if (x + cw > innerWidth - m) x = r.left - cw - m;
+  if (x < m) { x = Math.min(Math.max(m, r.left + r.width / 2 - cw / 2), innerWidth - cw - m); y = r.top - ch - m; if (y < m) y = r.bottom + m; }
+  y = Math.min(Math.max(m, y), innerHeight - ch - m);
+  el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
+}
+function hideCard() { clearTimeout(cardT); const el = $('sqCard'); if (el) el.hidden = true; }
+document.addEventListener('pointerdown', e => { lastPointer = e.pointerType || 'mouse'; }, true);
+$('grid').addEventListener('pointerover', e => {
+  if (e.pointerType !== 'mouse' || isTouch()) return;
+  const t = e.target.closest('#grid > div'); clearTimeout(cardT);
+  if (!t) return;
+  const i = +t.dataset.i, b = UI.view === 'next' ? null : cur();
+  if (!b || !b.sq[i] || UI.revealing.has(i)) { hideCard(); UI.card = null; return; }
+  cardT = setTimeout(() => showCard(i, false), 220);
+});
+$('grid').addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !isTouch()) { hideCard(); UI.card = null; } });
+addEventListener('scroll', () => { if (UI.card !== null && !isTouch()) { hideCard(); UI.card = null; } }, { passive: true });
+
+/* ===== Veteran shine: one random veteran square glows every 30 s (2 per minute max, whole board) ===== */
+const VETERAN_MIN_PLAYS = 40;        // plays across all boards (used once the feed carries who[].totalPlays)
+const VETERAN_BOARD_MIN = 20;        // fallback until then: plays on this board
+const SHINE_EVERY_MS = 30000, SHINE_MS = 1500;
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function veteranSquares() {
+  const f = feed(), b = cur(); if (!f || !b) return [];
+  const per = new Map(); for (const [i, , , w] of f.squares) per.set(w, (per.get(w) || 0) + 1);
+  const out = [];
+  for (const [i, , , w] of f.squares) { const who = f.who[w] || {}; if (who.bot) continue;
+    const vet = typeof who.totalPlays === 'number' ? who.totalPlays >= VETERAN_MIN_PLAYS : per.get(w) >= VETERAN_BOARD_MIN;
+    if (vet) out.push(i); }
+  return out;
+}
+function shineNow() {
+  if (reducedMotion() || UI.view === 'next' || UI.animating || document.hidden) return null;
+  const v = veteranSquares().filter(i => !UI.revealing.has(i)); if (!v.length) return null;
+  const i = v[Math.floor(Math.random() * v.length)], el = tiles[i]; if (!el) return null;
+  el.dataset.shine = '1'; setTimeout(() => { delete el.dataset.shine; }, SHINE_MS + 100);
+  return i;
+}
+setInterval(shineNow, SHINE_EVERY_MS);
+
 function tileModal(i) {
   const b = cur(); const s = b && b.sq[i]; if (!s) return;
   const w = s.o === 'me' && me() ? me().wins.find(x => x.stake === b.stake && x.n === b.n && x.i === i) : null;
@@ -1020,7 +1138,7 @@ function toggle(i) {
   if (b.next) {
     if (!picking()) return toast(eaOK() ? 'Tap “⚡ Early Access: pick now” to pre-pick squares.' : `Board #${b.n} opens when Board #${b.n - 1} closes. Play ${EA_AT}+ squares on #${b.n - 1} for Early Access.`);
     if (b.pre.has(i)) return toast(`#${i + 1} is already one of your Early Access picks.`);
-  } else if (b.sq[i]) return tileModal(i);
+  } else if (b.sq[i]) { hideCard(); if (isTouch() && UI.card !== i) return showCard(i, true); UI.card = null; return tileModal(i); }
   const h = myHold();
   if (h) { if (h.squares.includes(i) && h.stake === active && !!h.early === !!b.next) return payModal(); return toast('Finish or cancel your current hold first.'); }
   if (!b.next && b.othersHeld.has(i)) return toast(`#${i + 1} is being held by another player right now.`);
@@ -1112,13 +1230,15 @@ $('manualIn').addEventListener('input', () => { if ($('manualMsg').classList.con
 function switchStake(stake) { active = stake; ls.set(ACTIVE_KEY, String(stake)); UI.sel.clear(); UI.view = 'open'; UI.eaPick = false; mMsg(''); renderAll(); pollNow(); }
 document.addEventListener('click', e => {
   const t = e.target;
-  const tile = t.closest('#grid > div'); if (tile) return toggle(+tile.dataset.i);
+  if (t.closest('[data-act=closeCard]')) { hideCard(); UI.card = null; return; }
+  const tile = t.closest('#grid > div'); if (tile) { if (UI.card !== null && UI.card !== +tile.dataset.i) { hideCard(); UI.card = null; } return toggle(+tile.dataset.i); }
+  if (UI.card !== null && !t.closest('#sqCard')) { hideCard(); UI.card = null; }
   const tab = t.closest('.tab'); if (tab && !tab.disabled) { if (UI.animating) return; return switchStake(+tab.dataset.stake); }
   const vt = t.closest('[data-view]'); if (vt) { if (UI.animating || UI.view === vt.dataset.view || !feed()) return; UI.view = vt.dataset.view; UI.eaPick = false; UI.sel.clear(); mMsg(''); renderAll(); return; }
   if (t.closest('[data-close]')) { const gt = t.closest('[data-goto]'); closeModal(); if (gt && +gt.dataset.goto !== active) switchStake(+gt.dataset.goto); return; }
   if (t.id === 'modalRoot' && UI.modal && UI.modal !== 'name' && UI.modal !== 'pay') return closeModal();
   if (t.closest('[data-close-drawer]') || t.id === 'drawer') { $('drawer').hidden = true; return; }
-  if (t.closest('[data-act=dismissNotice]')) { ls.set(NOTICE_KEY, '1'); renderNotice(); return; }
+  if (t.closest('[data-act=dismissNotice]')) { if (HEADLINE && HEADLINE.id) ls.set(HEADLINE_KEY, String(HEADLINE.id)); renderNotice(); return; }
   const d = t.closest('[data-dev]'); if (d) return dev(d.dataset.dev);
   const a = t.closest('[data-act]'); if (!a || a.disabled) return;
   const act = a.dataset.act;
@@ -1131,6 +1251,7 @@ document.addEventListener('click', e => {
   if (act === 'cancelHold') cancelHold();
   if (act === 'saveName') saveName();
   if (act === 'cashOut') { if (confirm(`Cash out ${fmt(unlocked())}? (Free beta: it would be sent within 16 hours; nothing is actually sent.)`)) cashOut(); }
+  if (act === 'cardMore') { const i = +a.dataset.i; hideCard(); UI.card = null; return tileModal(i); }
   if (act === 'eaStart') { if (!eaOK()) return; UI.view = 'next'; UI.eaPick = true; UI.sel.clear(); mMsg(''); renderAll(); toast(`⚡ Early Access: pick squares on Board #${feed().board.n + 1}`); }
   if (act === 'csv') downloadCSV();
   if (act === 'histMore') loadHistory(true).catch(err => toast(err.message));
@@ -1188,7 +1309,7 @@ function tick() {
 }
 
 /* ===== Boot ===== */
-ls.del(OLD_KEY); // beta reset: the old local-only game state (grokTipBoard.v1) is discarded
+ls.del(OLD_KEY); ls.del(OLD_NOTICE_KEY); // beta reset: the old local-only game state (grokTipBoard.v1) is discarded
 active = ls.get(ACTIVE_KEY) === '20' ? 20 : 5;
 buildGrid(); renderNotice(); renderAll();
 $('devToggle').hidden = !DEV_ON; document.body.classList.toggle('dev', DEV_ON);
@@ -1199,7 +1320,7 @@ $('devToggle').hidden = !DEV_ON; document.body.classList.toggle('dev', DEV_ON);
   if (!ls.get(ONB_KEY) && me()) onboarding(false);
 })();
 setInterval(tick, 1000);
-window.__tip = { API, UI, ADM, get active() { return active; }, manualPick, pollNow, refreshAll, cur, rulesHTML, DEV_ON };
+window.__tip = { API, UI, ADM, setHeadline, shineNow, veteranSquares, get active() { return active; }, manualPick, pollNow, refreshAll, cur, rulesHTML, DEV_ON };
 })();
 
 </script>
