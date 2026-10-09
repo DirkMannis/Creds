@@ -1,0 +1,21 @@
+{
+  "name": "creds-tip-board",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tip board (free play-money beta): shared-boards backend on Vercel Functions + Neon Postgres",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "migrate": "node api/_db/migrate.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "@vercel/functions": "^3.9.11"
+  },
+  "devDependencies": {
+    "ws": "^8.22.0"
+  }
+}
