@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 const LOCK_KEY = 7340501; // arbitrary constant for pg_advisory_xact_lock
 export const schemaSql = () => readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
 

@@ -25,8 +25,8 @@ test('schema applies cleanly, is idempotent, and survives 8 concurrent migration
   const again = await migrate(pool);
   assert.equal(again.applied, false);
   const { rows } = await pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1`);
-  assert.deepEqual(rows.map(r => r.table_name), ['admin_audit', 'board_secrets', 'boards', 'hold_squares', 'holds', 'ledger',
-    'payouts', 'players', 'plays', 'prepicks', 'rate_events', 'schema_migrations', 'wallets', 'wins']);
+  assert.deepEqual(rows.map(r => r.table_name), ['admin_audit', 'board_secrets', 'boards', 'bot_ledger', 'hold_squares', 'holds', 'ledger',
+    'payouts', 'players', 'plays', 'prepicks', 'rate_events', 'schema_migrations', 'settings', 'wallets', 'wins']);
   // forcing the full SQL again (not just the version check) must also be a no-op
   const { schemaSql } = await import('../api/_db/migrate.js');
   await pool.query(schemaSql());
@@ -147,7 +147,7 @@ test('board feed shape, cache header, and no secrets', async () => {
   const text = await r.text(), f = JSON.parse(text);
   assert.equal(f.v, 1);
   assert.equal(f.pollMs, 4000);
-  assert.deepEqual(Object.keys(f).sort(), ['board', 'held', 'lastClosed', 'next', 'pollMs', 'recent', 'recentClosed', 'serverTime', 'squares', 'stakes', 'v', 'who']);
+  assert.deepEqual(Object.keys(f).sort(), ['board', 'bots', 'held', 'lastClosed', 'next', 'pollMs', 'recent', 'recentClosed', 'serverTime', 'squares', 'stakes', 'v', 'who']);
   const b = f.board;
   assert.equal(b.stake, 5); assert.equal(b.n, 1); assert.equal(b.status, 'open'); assert.equal(b.label, '$5 Board #1');
   assert.equal(b.grid, 500); assert.equal(b.closeAt, 400); assert.equal(b.plays, 0); assert.equal(b.bigUnlockAt, 100);

@@ -5,10 +5,13 @@ import { playerFromRequest } from '../_lib/auth.js';
 import { screenHandle, normHandle } from '../_lib/names.js';
 import { displayName } from '../_lib/board.js';
 import { json, error, handle, readJson } from '../_lib/http.js';
+import { rateLimit } from '../_lib/ratelimit.js';
 
 export const POST = handle('me/handle', async request => withPool(async pool => {
   const player = await playerFromRequest(pool, request);
   if (!player) return error(401, 'No session. POST /api/session first.');
+  const limited = await rateLimit(pool, request, player.id, 'me/handle');
+  if (limited) return limited;
   const body = await readJson(request);
   if (player.handle_kind === 'x') return error(409, 'Your tiles use your X handle.');
   if (body.handle === null || body.handle === '') {

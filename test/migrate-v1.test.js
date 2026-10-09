@@ -21,7 +21,7 @@ test('v1 database with open boards migrates to v2 without touching existing data
   await pool.query(`INSERT INTO players (token_hash) VALUES (repeat('d', 64))`);
   const before = (await pool.query('SELECT id, stake, n, commit_hash, status FROM boards ORDER BY id')).rows;
   const r = await migrate(pool);
-  assert.deepEqual(r, { before: 1, after: 2, applied: true });
+  assert.deepEqual(r, { before: 1, after: 3, applied: true });
   assert.deepEqual((await pool.query('SELECT id, stake, n, commit_hash, status FROM boards ORDER BY id')).rows, before, 'boards untouched');
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM players')).rows[0].n, 1);
   assert.equal((await pool.query(`SELECT to_regclass('payouts') IS NOT NULL AS ok`)).rows[0].ok, true);
