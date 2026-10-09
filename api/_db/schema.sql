@@ -1,4 +1,4 @@
--- Tip board (free play-money beta): shared-boards data model, schema version 1.
+-- Tip board (free play-money beta): shared-boards data model, schema versions 1-2.
 -- Applied by api/_db/migrate.js (idempotent: every statement is IF NOT EXISTS, run under an advisory lock).
 -- Money is numeric(12,2) dollars. Times are timestamptz.
 --
@@ -181,3 +181,31 @@ CREATE TABLE IF NOT EXISTS rate_events (
 CREATE INDEX IF NOT EXISTS rate_events_lookup ON rate_events (action, key, at);
 
 INSERT INTO schema_migrations (version) VALUES (1) ON CONFLICT (version) DO NOTHING;
+
+-- ===================== v2: server engine + write path (additive, idempotent) =====================
+
+-- Would-be-sent payouts (free beta: nothing is actually sent). One row per cash-out request,
+-- auto payout at close, or unused carried credit paid at the next close. send_by = requested + 16 h.
+CREATE TABLE IF NOT EXISTS payouts (
+  id          bigserial PRIMARY KEY,
+  player_id   bigint NOT NULL REFERENCES players (id),
+  at          timestamptz NOT NULL DEFAULT now(),
+  kind        text NOT NULL CHECK (kind IN ('cashout', 'close', 'carry_unused')),
+  board_id    bigint REFERENCES boards (id),
+  amount      numeric(12,2) NOT NULL CHECK (amount > 0),
+  send_by     timestamptz NOT NULL,
+  status      text NOT NULL DEFAULT 'would_send' CHECK (status IN ('would_send', 'sent', 'void'))
+);
+CREATE INDEX IF NOT EXISTS payouts_player ON payouts (player_id, id DESC);
+
+-- Memo codes are unique among live holds (holds are deleted when paid, cancelled or expired).
+CREATE UNIQUE INDEX IF NOT EXISTS holds_code_key ON holds (code);
+
+-- Ledger kinds: v2 adds 'preplay' (an Early Access pick was played when its board opened; amount 0,
+-- the money moved at 'prepay'). 'win' rows are informational (amount 0, the prize is in the note).
+ALTER TABLE ledger DROP CONSTRAINT IF EXISTS ledger_kind_check;
+ALTER TABLE ledger ADD CONSTRAINT ledger_kind_check CHECK (kind IN ('play', 'replay', 'prepay', 'preplay', 'win',
+  'unlock', 'settle', 'carry', 'payout', 'cashout', 'dev_topup', 'adjust'));
+CREATE INDEX IF NOT EXISTS ledger_bucket ON ledger (bucket, player_id) WHERE bucket IS NOT NULL;
+
+INSERT INTO schema_migrations (version) VALUES (2) ON CONFLICT (version) DO NOTHING;

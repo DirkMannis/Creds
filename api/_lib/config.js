@@ -24,3 +24,5 @@ export const FEED_S_MAXAGE = 3; // CDN cache seconds for the public board feed
 
 export const capFor = boardsPlayed => (boardsPlayed >= CAP_REGULAR_AFTER ? CAP_REGULAR : CAP_NEW);
 export const SESSIONS_PER_IP_PER_DAY = 10; // new anonymous players per (hashed) IP per day
+export const PREPICK_MAX = 200;           // Early Access pre-picks (paid + held) per upcoming board
+export const MAX_SQUARES_PER_HOLD = CAP_REGULAR;

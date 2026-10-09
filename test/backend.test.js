@@ -26,7 +26,7 @@ test('schema applies cleanly, is idempotent, and survives 8 concurrent migration
   assert.equal(again.applied, false);
   const { rows } = await pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1`);
   assert.deepEqual(rows.map(r => r.table_name), ['admin_audit', 'board_secrets', 'boards', 'hold_squares', 'holds', 'ledger',
-    'players', 'plays', 'prepicks', 'rate_events', 'schema_migrations', 'wallets', 'wins']);
+    'payouts', 'players', 'plays', 'prepicks', 'rate_events', 'schema_migrations', 'wallets', 'wins']);
   // forcing the full SQL again (not just the version check) must also be a no-op
   const { schemaSql } = await import('../api/_db/migrate.js');
   await pool.query(schemaSql());
@@ -147,7 +147,7 @@ test('board feed shape, cache header, and no secrets', async () => {
   const text = await r.text(), f = JSON.parse(text);
   assert.equal(f.v, 1);
   assert.equal(f.pollMs, 4000);
-  assert.deepEqual(Object.keys(f).sort(), ['board', 'held', 'pollMs', 'recent', 'serverTime', 'squares', 'stakes', 'v', 'who']);
+  assert.deepEqual(Object.keys(f).sort(), ['board', 'held', 'lastClosed', 'next', 'pollMs', 'recent', 'serverTime', 'squares', 'stakes', 'v', 'who']);
   const b = f.board;
   assert.equal(b.stake, 5); assert.equal(b.n, 1); assert.equal(b.status, 'open'); assert.equal(b.label, '$5 Board #1');
   assert.equal(b.grid, 500); assert.equal(b.closeAt, 400); assert.equal(b.plays, 0); assert.equal(b.bigUnlockAt, 100);
@@ -214,7 +214,7 @@ test('me returns the wallet summary for a token, 401 without one', async () => {
   const r = await me.GET(req('/api/me', { headers: auth }));
   assert.equal(r.status, 200); assert.equal(r.headers.get('cache-control'), 'no-store');
   const m = await r.json();
-  assert.deepEqual(Object.keys(m).sort(), ['boards', 'historyEntries', 'hold', 'player', 'prepicks', 'wallet']);
+  assert.deepEqual(Object.keys(m).sort(), ['boards', 'historyEntries', 'hold', 'payouts', 'player', 'prepicks', 'wallet']);
   assert.equal(m.player.id, s.player.id); assert.equal(m.player.cap, 20); assert.equal(m.player.keepBalance, false);
   assert.deepEqual(m.wallet.buckets, []); assert.equal(m.wallet.unlocked, 0); assert.equal(m.wallet.pending, 0);
   assert.equal(m.hold, null); assert.deepEqual(m.prepicks, []);

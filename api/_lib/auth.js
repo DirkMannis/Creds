@@ -18,7 +18,7 @@ export async function playerFromRequest(q, request) {
   if (!token) return null;
   const { rows } = await q.query(
     `UPDATE players SET last_seen_at = now() WHERE token_hash = $1 AND NOT banned
-     RETURNING id, handle, handle_kind, boards_played, keep_balance, is_bot, is_staff, created_at`,
+     RETURNING id, handle, handle_kind, x_user_id, boards_played, keep_balance, is_bot, is_staff, created_at`,
     [hashToken(token)]);
   return rows[0] || null;
 }

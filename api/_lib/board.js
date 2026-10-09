@@ -1,9 +1,9 @@
 // Board open (with commitment) and the public board feed.
 import { tx, money } from './db.js';
 import { newBag, countsOf, COMMIT_SCHEME, KINDS } from './bag.js';
-import { GRID, CLOSE_AT, BIG_UNLOCK, STALL_MS, HOLD_MS, POLL_MS, STAKES, LIVE_STAKES } from './config.js';
+import { GRID, CLOSE_AT, BIG_UNLOCK, STALL_MS, HOLD_MS, POLL_MS, STAKES, LIVE_STAKES, EA_AT } from './config.js';
 
-const OPEN_LOCK = 7340600; // + stake -> per-stake advisory lock for board opening
+export const OPEN_LOCK = 7340600; // + stake -> per-stake advisory lock for board opening
 
 const BOARD_COLS = `id, stake, n, status, opened_at, stall_from, plays, carry_in, carry_used, host_drawn,
   commit_hash, commit_scheme, bag_left`;
@@ -31,16 +31,21 @@ export async function ensureOpenBoard(pool, stake) {
       `SELECT n, status, summary FROM boards WHERE stake = $1 ORDER BY n DESC LIMIT 1`, [stake]);
     const n = last ? last.n + 1 : 1;
     const carryIn = last && last.summary && last.summary.carryOut ? money(last.summary.carryOut) : 0;
-    const bag = newBag(stake, n);
-    const { rows: [board] } = await c.query(
-      `INSERT INTO boards (stake, n, carry_in, commit_hash, commit_scheme, bag_left)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${BOARD_COLS}`,
-      [stake, n, carryIn, bag.commit, COMMIT_SCHEME, JSON.stringify(countsOf(bag.order))]);
-    await c.query('INSERT INTO board_secrets (board_id, salt, draw_order) VALUES ($1, $2, $3)',
-      [board.id, bag.salt, bag.codes]);
-    // Early Access pre-picks for board n are played by the engine (PR 2).
-    return board;
+    return insertBoard(c, stake, n, carryIn);
   });
+}
+
+/** Insert board (stake, n) with a freshly shuffled, locked bag. Caller holds the right locks. */
+export async function insertBoard(c, stake, n, carryIn) {
+  await c.query('SELECT pg_advisory_xact_lock($1)', [OPEN_LOCK + stake]);
+  const bag = newBag(stake, n);
+  const { rows: [board] } = await c.query(
+    `INSERT INTO boards (stake, n, carry_in, commit_hash, commit_scheme, bag_left)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${BOARD_COLS}`,
+    [stake, n, carryIn, bag.commit, COMMIT_SCHEME, JSON.stringify(countsOf(bag.order))]);
+  await c.query('INSERT INTO board_secrets (board_id, salt, draw_order) VALUES ($1, $2, $3)',
+    [board.id, bag.salt, bag.codes]);
+  return board;
 }
 
 /** Display label: self-typed @handles stay hidden until X sign-in; screened in-game handles show. */
@@ -62,6 +67,16 @@ export async function boardFeed(pool, stake) {
       `SELECT idx FROM hold_squares WHERE stake = $1 AND board_n = $2 AND expires_at > now() ORDER BY idx`,
       [stake, b.n]),
   ]);
+  const [pre, last] = await Promise.all([
+    pool.query(
+      `SELECT (SELECT count(*) FROM prepicks WHERE stake = $1 AND board_n = $2)::int AS prepicked,
+              (SELECT count(*) FROM hold_squares WHERE stake = $1 AND board_n = $2 AND expires_at > now())::int AS held`,
+      [stake, b.n + 1]),
+    pool.query(
+      `SELECT id, n, reason, opened_at, closed_at, commit_hash, summary, reveal FROM boards
+        WHERE stake = $1 AND status = 'closed' ORDER BY n DESC LIMIT 1`, [stake]),
+  ]);
+  const lc = last.rows[0];
   // who: compact player table so each square only carries an index
   const who = [], whoIx = new Map();
   const squares = plays.rows.map(r => {
@@ -90,6 +105,12 @@ export async function boardFeed(pool, stake) {
       commit: { hash: b.commit_hash, scheme: b.commit_scheme, note: 'Bag shuffled and locked at open; salt and order revealed at close.' },
       holdMinutes: HOLD_MS / 60e3,
     },
+    next: { n: b.n + 1, label: `$${b.stake} Board #${b.n + 1}`, prepicked: pre.rows[0].prepicked, held: pre.rows[0].held, earlyAccessAt: EA_AT },
+    lastClosed: lc ? {
+      id: Number(lc.id), n: lc.n, label: `$${stake} Board #${lc.n}`, reason: lc.reason,
+      openedAt: new Date(lc.opened_at).toISOString(), closedAt: new Date(lc.closed_at).toISOString(),
+      commit: lc.commit_hash, summary: lc.summary, reveal: lc.reveal, // salt + order are public once a board closes
+    } : null,
     squares,   // [squareIndex 0-499, playNo 1-400, prize, whoIndex]
     who,       // [{ name, bot }]  bots are labeled 🤖 in the UI
     held: heldIdx,

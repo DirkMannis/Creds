@@ -4,7 +4,7 @@ import { capFor, LIVE_STAKES, EA_AT } from './config.js';
 import { displayName } from './board.js';
 
 export async function meSummary(q, player) {
-  const [wallet, buckets, pending, boards, hold, prepicks, hist] = await Promise.all([
+  const [wallet, buckets, pending, boards, hold, prepicks, hist, payouts] = await Promise.all([
     q.query('SELECT unlocked FROM wallets WHERE player_id = $1', [player.id]),
     q.query(`SELECT bucket, sum(amount) AS amt FROM ledger
               WHERE player_id = $1 AND bucket IS NOT NULL GROUP BY bucket HAVING sum(amount) > 0 ORDER BY bucket`, [player.id]),
@@ -17,6 +17,8 @@ export async function meSummary(q, player) {
     q.query(`SELECT stake, board_n, count(*) AS n FROM prepicks
               WHERE player_id = $1 AND NOT played GROUP BY stake, board_n ORDER BY stake, board_n`, [player.id]),
     q.query('SELECT count(*) AS n FROM ledger WHERE player_id = $1', [player.id]),
+    q.query(`SELECT id, at, kind, board_id, amount, send_by, status, now() >= send_by AS due FROM payouts
+              WHERE player_id = $1 ORDER BY id DESC LIMIT 10`, [player.id]),
   ]);
   const cap = capFor(player.boards_played);
   const h = hold.rows[0];
@@ -39,5 +41,7 @@ export async function meSummary(q, player) {
     hold: h ? { stake: h.stake, n: h.board_n, early: h.early, squares: h.squares, code: h.code, expiresAt: new Date(h.expires_at).toISOString() } : null,
     prepicks: prepicks.rows.map(r => ({ stake: r.stake, n: r.board_n, count: Number(r.n) })),
     historyEntries: Number(hist.rows[0].n),
+    payouts: payouts.rows.map(r => ({ id: Number(r.id), at: new Date(r.at).toISOString(), kind: r.kind, amount: money(r.amount),
+      sendBy: new Date(r.send_by).toISOString(), status: r.due && r.status === 'would_send' ? 'would_have_been_sent' : r.status })),
   };
 }
