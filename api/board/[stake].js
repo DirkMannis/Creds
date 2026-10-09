@@ -1,9 +1,9 @@
 // GET /api/board/:stake  -> public board feed for the $5 or $20 board (cached ~3 s at the CDN).
 // Opens the board (with a published commitment hash) if none is open for that stake.
-import { withPool } from '../../lib/db.js';
-import { boardFeed } from '../../lib/board.js';
-import { json, error, handle, stakeFrom } from '../../lib/http.js';
-import { LIVE_STAKES, STAKES, FEED_S_MAXAGE } from '../../lib/config.js';
+import { withPool } from '../_lib/db.js';
+import { boardFeed } from '../_lib/board.js';
+import { json, error, handle, stakeFrom } from '../_lib/http.js';
+import { LIVE_STAKES, STAKES, FEED_S_MAXAGE } from '../_lib/config.js';
 
 export const GET = handle('board', async request => {
   const stake = stakeFrom(request);

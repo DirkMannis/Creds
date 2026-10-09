@@ -1,9 +1,9 @@
-// POST /api/admin/migrate  (header x-admin-key: <ADMIN_KEY>) -> applies db/schema.sql (idempotent).
+// POST /api/admin/migrate  (header x-admin-key: <ADMIN_KEY>) -> applies api/_db/schema.sql (idempotent).
 // Returns 404 unless ADMIN_KEY is set (16+ chars) and matches. Every call is written to admin_audit.
-import { newPool } from '../../lib/db.js';
-import { migrate } from '../../db/migrate.js';
-import { isAdmin } from '../../lib/auth.js';
-import { json, error, handle } from '../../lib/http.js';
+import { newPool } from '../_lib/db.js';
+import { migrate } from '../_db/migrate.js';
+import { isAdmin } from '../_lib/auth.js';
+import { json, error, handle } from '../_lib/http.js';
 
 export const POST = handle('admin/migrate', async request => {
   if (!isAdmin(request)) return error(404, 'Not found');

@@ -1,10 +1,10 @@
 -- Tip board (free play-money beta): shared-boards data model, schema version 1.
--- Applied by db/migrate.js (idempotent: every statement is IF NOT EXISTS, run under an advisory lock).
+-- Applied by api/_db/migrate.js (idempotent: every statement is IF NOT EXISTS, run under an advisory lock).
 -- Money is numeric(12,2) dollars. Times are timestamptz.
 --
--- Game constants live in lib/config.js: 500 squares, closes at 400 plays or after 5 days,
+-- Game constants live in api/_lib/config.js: 500 squares, closes at 400 plays or after 5 days,
 -- a square payment hold lasts 5 minutes (HOLD_MS), caps 20 / 40 after 2 boards.
--- The bag (lib/bag.js) is 192 Double Up, 2 Big Send, 1 Host Tip, 205 Patron:
+-- The bag (api/_lib/bag.js) is 192 Double Up, 2 Big Send, 1 Host Tip, 205 Patron:
 -- shuffled and locked at open, SHA-256 commitment published at open, revealed at close.
 -- Host and admin accounts (players.is_staff) can't play.
 

@@ -1,8 +1,8 @@
 // GET /api/me  (Authorization: Bearer <token>) -> the token's wallet summary. Never cached.
-import { withPool } from '../lib/db.js';
-import { playerFromRequest } from '../lib/auth.js';
-import { meSummary } from '../lib/me.js';
-import { json, error, handle } from '../lib/http.js';
+import { withPool } from './_lib/db.js';
+import { playerFromRequest } from './_lib/auth.js';
+import { meSummary } from './_lib/me.js';
+import { json, error, handle } from './_lib/http.js';
 
 export const GET = handle('me', async request => withPool(async pool => {
   const player = await playerFromRequest(pool, request);

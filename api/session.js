@@ -1,10 +1,10 @@
 // POST /api/session  -> issues an anonymous device token (beta identity).
 // If the request already carries a valid token, returns that player instead of minting a new one.
-import { withPool, tx } from '../lib/db.js';
-import { newToken, hashToken, playerFromRequest, ipKey } from '../lib/auth.js';
-import { json, error, handle, clientIp } from '../lib/http.js';
-import { capFor, SESSIONS_PER_IP_PER_DAY } from '../lib/config.js';
-import { displayName } from '../lib/board.js';
+import { withPool, tx } from './_lib/db.js';
+import { newToken, hashToken, playerFromRequest, ipKey } from './_lib/auth.js';
+import { json, error, handle, clientIp } from './_lib/http.js';
+import { capFor, SESSIONS_PER_IP_PER_DAY } from './_lib/config.js';
+import { displayName } from './_lib/board.js';
 
 const view = p => ({ id: Number(p.id), name: displayName(p), boardsPlayed: p.boards_played, cap: capFor(p.boards_played) });
 

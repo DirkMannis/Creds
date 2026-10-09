@@ -2,9 +2,9 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Pool } from '@neondatabase/serverless';
 import { freshDb, stopProxy, req } from './helpers.js';
-import { migrate, currentVersion, SCHEMA_VERSION, _resetEnsured } from '../db/migrate.js';
-import { BAG, buildTickets, newBag, shuffleWithSalt, commitHash, verifyReveal, countsOf, orderLetters, KINDS } from '../lib/bag.js';
-import { HOLD_MS, CLOSE_AT, GRID } from '../lib/config.js';
+import { migrate, currentVersion, SCHEMA_VERSION, _resetEnsured } from '../api/_db/migrate.js';
+import { BAG, buildTickets, newBag, shuffleWithSalt, commitHash, verifyReveal, countsOf, orderLetters, KINDS } from '../api/_lib/bag.js';
+import { HOLD_MS, CLOSE_AT, GRID } from '../api/_lib/config.js';
 import * as session from '../api/session.js';
 import * as board from '../api/board/[stake].js';
 import * as me from '../api/me.js';
@@ -28,7 +28,7 @@ test('schema applies cleanly, is idempotent, and survives 8 concurrent migration
   assert.deepEqual(rows.map(r => r.table_name), ['admin_audit', 'board_secrets', 'boards', 'hold_squares', 'holds', 'ledger',
     'players', 'plays', 'prepicks', 'rate_events', 'schema_migrations', 'wallets', 'wins']);
   // forcing the full SQL again (not just the version check) must also be a no-op
-  const { schemaSql } = await import('../db/migrate.js');
+  const { schemaSql } = await import('../api/_db/migrate.js');
   await pool.query(schemaSql());
 });
 
@@ -126,7 +126,7 @@ test('20 parallel first requests open exactly one board per stake, with a valid 
 });
 
 test('next board opens once across 20 separate instances (pools), with carryover from the closed board', async () => {
-  const { ensureOpenBoard } = await import('../lib/board.js');
+  const { ensureOpenBoard } = await import('../api/_lib/board.js');
   await pool.query(`UPDATE boards SET status = 'closed', closed_at = now(), reason = 'stall', summary = '{"carryOut": 37.5}' WHERE stake = 20 AND status = 'open'`);
   const pools = Array.from({ length: 20 }, () => new Pool({ connectionString: process.env.DATABASE_URL }));
   const boards = await Promise.all(pools.map(p => ensureOpenBoard(p, 20)));

@@ -3,7 +3,7 @@
 // Following Neon's Vercel guidance, a Pool is created per request and closed after the response.
 import { Pool } from '@neondatabase/serverless';
 import { waitUntil } from '@vercel/functions';
-import { ensureSchema } from '../db/migrate.js';
+import { ensureSchema } from '../_db/migrate.js';
 
 export function databaseUrl() {
   const url = process.env.DATABASE_URL;

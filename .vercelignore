@@ -1,2 +1,2 @@
-# Keep tests out of deployments (functions only need api/, lib/, db/).
+# Keep tests out of deployments (functions only need api/, including api/_lib and api/_db).
 test/

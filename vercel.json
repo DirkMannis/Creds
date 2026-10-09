@@ -1,7 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "routes": [
-    { "src": "^/(lib|db|test|node_modules)(/.*)?$", "status": 404 },
-    { "src": "^/package(-lock)?\\.json$", "status": 404 }
-  ]
-}
