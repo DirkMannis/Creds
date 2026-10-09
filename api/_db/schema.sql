@@ -209,3 +209,39 @@ ALTER TABLE ledger ADD CONSTRAINT ledger_kind_check CHECK (kind IN ('play', 'rep
 CREATE INDEX IF NOT EXISTS ledger_bucket ON ledger (bucket, player_id) WHERE bucket IS NOT NULL;
 
 INSERT INTO schema_migrations (version) VALUES (2) ON CONFLICT (version) DO NOTHING;
+
+-- ===================== v3: bots, bot ledger, admin settings, fairness (additive, idempotent) =====================
+
+-- Bots: labeled practice players (players.is_bot). They advance lazily on board-feed requests at a set
+-- rate; bots_at is the time the bot clock for that board has been accounted up to.
+ALTER TABLE boards ADD COLUMN IF NOT EXISTS bots_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE boards DROP CONSTRAINT IF EXISTS boards_reason_check;
+ALTER TABLE boards ADD CONSTRAINT boards_reason_check CHECK (reason IN ('full', 'stall', 'admin', 'reset'));
+
+-- Bot money never touches the human ledger or wallets: same shape as ledger, separate table.
+-- Bots play with simulated tips (bucket NULL), win into board:<id>, and are paid out at close (never carry).
+CREATE TABLE IF NOT EXISTS bot_ledger (
+  id         bigserial PRIMARY KEY,
+  player_id  bigint NOT NULL REFERENCES players (id),
+  at         timestamptz NOT NULL DEFAULT now(),
+  kind       text NOT NULL CHECK (kind IN ('play', 'win', 'unlock', 'settle', 'payout', 'adjust')),
+  bucket     text,
+  board_id   bigint REFERENCES boards (id),
+  square     smallint,
+  amount     numeric(12,2) NOT NULL,
+  note       text
+);
+CREATE INDEX IF NOT EXISTS bot_ledger_board ON bot_ledger (board_id, kind);
+CREATE INDEX IF NOT EXISTS bot_ledger_bucket ON bot_ledger (bucket, player_id) WHERE bucket IS NOT NULL;
+
+-- Runtime settings changed by the admin API (bots on/off and speed). Env BOTS_ENABLED=false overrides.
+CREATE TABLE IF NOT EXISTS settings (
+  key         text PRIMARY KEY,
+  value       jsonb NOT NULL,
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS rate_events_at ON rate_events (at);
+CREATE INDEX IF NOT EXISTS admin_audit_at ON admin_audit (at DESC);
+
+INSERT INTO schema_migrations (version) VALUES (3) ON CONFLICT (version) DO NOTHING;

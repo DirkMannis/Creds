@@ -4,6 +4,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import net from 'node:net';
 import { neonConfig, Pool } from '@neondatabase/serverless';
 
+// Bots are off unless a test turns them on (keeps play counts in the older tests exact).
+process.env.BOTS_ENABLED ??= 'false';
+
 export const PG_HOST = process.env.TEST_PG_HOST || '127.0.0.1';
 export const PG_PORT = Number(process.env.TEST_PG_PORT || 55432);
 const ADMIN_URL = `postgresql://postgres@${PG_HOST}:${PG_PORT}/postgres`;

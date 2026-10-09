@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fairness · Grok Tip Board</title>
+<meta name="description" content="Every board's prize bag is shuffled and locked at open. Check the commitment hashes and verify any closed board yourself.">
+<style>
+:root{--bg:#0a0c11;--panel:#131722;--panel2:#1a1f2d;--line:#262d40;--txt:#e9edf6;--mut:#8b94aa;--acc:#7c9cff;--dbl:#20d48a;--big:#ffc23d;--host:#b583ff;--bad:#ff5d6c;--r:14px}
+*{box-sizing:border-box}
+html,body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#1b2340 0%,var(--bg) 55%) fixed;color:var(--txt);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--acc)}
+button{font:inherit;color:inherit;cursor:pointer}
+.testbar{position:sticky;top:0;z-index:5;text-align:center;font-weight:800;letter-spacing:.06em;font-size:12px;padding:6px 8px;background:repeating-linear-gradient(45deg,#ffcf3d,#ffcf3d 14px,#ffb81f 14px,#ffb81f 28px);color:#1a1300;text-transform:uppercase}
+.wrap{max-width:1040px;margin:0 auto;padding:16px 20px 60px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{font-size:28px;width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,#2a3560,#151a2a);border:1px solid var(--line)}
+h1{font-size:20px;margin:0}
+h2{font-size:15px;margin:0 0 8px}
+.mut{color:var(--mut)}
+.card{background:linear-gradient(180deg,var(--panel),#10141e);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:14px}
+.btn{border:1px solid var(--line);background:var(--panel2);padding:8px 13px;border-radius:11px;font-weight:600;text-decoration:none;display:inline-block;color:var(--txt)}
+.btn:hover{border-color:#3a4562;background:#20263a}
+.btn.pri{background:linear-gradient(135deg,#6f8dff,#9b6dff);border-color:transparent;color:#fff}
+.btn.sm{padding:5px 9px;font-size:12.5px;border-radius:9px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.tabs{display:flex;gap:8px;margin-top:14px}
+.tab{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:8px 16px;font-weight:700}
+.tab.on{background:linear-gradient(135deg,#253262,#1b2240);border-color:#4a5ea8}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+.hash{word-break:break-all;background:#0d1018;border:1px solid var(--line);border-radius:9px;padding:6px 9px;display:inline-block}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{color:var(--mut);font-weight:600;font-size:12.5px}
+td .hash{padding:3px 6px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.checks{list-style:none;padding:0;margin:8px 0}
+.checks li{padding:6px 0;border-bottom:1px dashed var(--line)}
+.ok{color:var(--dbl);font-weight:700}.bad{color:var(--bad);font-weight:700}
+.verdict{font-size:16px;font-weight:800;padding:10px 12px;border-radius:12px;margin:6px 0}
+.verdict.ok{background:#0f2a1f;border:1px solid #1f6b4a}.verdict.bad{background:#2a1218;border:1px solid #5a2030}
+.order{word-break:break-all;line-height:1.7;letter-spacing:.06em}
+.order b.D{color:var(--dbl)}.order b.B{color:var(--big)}.order b.H{color:var(--host)}.order b.P{color:#6f7d9c;font-weight:400}
+.scroll{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.scroll th{position:sticky;top:0;background:#141926}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600}
+.pill.bot{border-color:#4a5ea8;color:#b9c6ff}
+.prize-double{color:var(--dbl)}.prize-big{color:var(--big)}.prize-host{color:var(--host)}.prize-patron{color:var(--mut)}
+.err{color:var(--bad)}
+ol.how{padding-left:20px;margin:6px 0}
+ol.how li{margin:4px 0}
+@media (max-width:640px){.hide-sm{display:none}td,th{padding:6px 4px}}
+</style>
+</head>
+<body>
+<div class="testbar">Free beta · play money · nothing is sent</div>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><div class="logo">🎲</div><div><h1>Fairness</h1><div class="mut">Grok Tip Board · locked prize bags you can check yourself</div></div></div>
+    <a class="btn" href="/" id="back">← Back to the board</a>
+  </div>
+
+  <div class="card" id="how">
+    <h2>How it works</h2>
+    <ol class="how">
+      <li>When a board opens, the server picks a secret random 32-byte <b>salt</b> and shuffles the 400 prize tickets with it (192 Double Up, 2 Big Send, 1 Host Tip, 205 Patron). Play #k draws ticket #k, whatever square you pick.</li>
+      <li>It publishes a <b>commitment</b> right away: <code>SHA-256("grok-tip-board/v1|stake|n|salt_hex|order")</code>, where <code>order</code> is the 400 tickets as letters (D, B, H, P). The order can't change after that without the hash changing.</li>
+      <li>When the board closes, the salt and order are revealed. <b>Verify</b> below re-runs everything in your browser: it re-hashes the reveal, re-shuffles the tickets from the salt (HMAC-SHA256 stream, unbiased Fisher-Yates), and checks every play's prize against its ticket.</li>
+    </ol>
+    <p class="mut" style="margin:6px 0 0">Beta boards include labeled 🤖 practice players so boards close; removed before real money. They draw tickets in play order like everyone else and are marked 🤖 in the exports.</p>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="card" id="openCard"><h2>Open board</h2><div id="openBody" class="mut">Loading…</div></div>
+
+  <div class="card" id="verifyCard" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <h2 id="vTitle" style="margin:0">Verify</h2>
+      <div class="acts"><button class="btn sm" id="vCsv">⬇ CSV</button><button class="btn sm" id="vJson">⬇ JSON</button><button class="btn sm" id="vClose">Close</button></div>
+    </div>
+    <div id="vBody"></div>
+  </div>
+
+  <div class="card" id="closedCard">
+    <h2>Closed boards</h2>
+    <div id="closedBody" class="mut">Loading…</div>
+    <div style="margin-top:10px"><button class="btn sm" id="more" hidden>Load older boards</button></div>
+  </div>
+</div>
+<script>
+'use strict';
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const BAG = { double: 192, big: 2, host: 1, patron: 205 };
+  const LETTER = { double: 'D', big: 'B', host: 'H', patron: 'P' };
+  const NAME = { double: 'Double Up', big: 'Big Send', host: 'Host Tip', patron: 'Patron' };
+  const REASON = { full: 'full (400 plays)', stall: '5-day stall', admin: 'closed by admin', reset: 'reset (beta, plays refunded)' };
+  const qs = new URLSearchParams(location.search);
+  const state = { stakes: [5, 20], stake: Number(qs.get('stake')) || 5, before: null, snap: null, check: null };
+  const when = iso => iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const short = h => h ? h.slice(0, 10) + '…' + h.slice(-6) : '';
+
+  async function api(path) {
+    const r = await fetch(path, { headers: { accept: 'application/json' } });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body;
+  }
+
+  /* ---------- the verifier (same math as api/_lib/bag.js, in the browser) ---------- */
+  const enc = new TextEncoder();
+  const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  const unhex = h => { if (!/^([0-9a-f]{2})+$/i.test(h)) throw new Error('salt is not hex'); return new Uint8Array(h.match(/../g).map(x => parseInt(x, 16))); };
+  async function sha256Hex(text) { return hex(await crypto.subtle.digest('SHA-256', enc.encode(text))); }
+  async function rngFromSalt(salt, label) {
+    const key = await crypto.subtle.importKey('raw', salt, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    let counter = 0, view = null, off = 32;
+    const next32 = async () => {
+      if (off + 4 > 32) { view = new DataView(await crypto.subtle.sign('HMAC', key, enc.encode(`${label}:${counter++}`))); off = 0; }
+      const v = view.getUint32(off, false); off += 4; return v;
+    };
+    return async n => { const limit = Math.floor(0x100000000 / n) * n; for (;;) { const v = await next32(); if (v < limit) return v % n; } };
+  }
+  async function shuffle(items, salt, label = 'shuffle') {
+    const a = items.slice(), rnd = await rngFromSalt(salt, label);
+    for (let i = a.length - 1; i > 0; i--) { const j = await rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+  const tickets = () => { const t = []; for (const k of ['double', 'big', 'host', 'patron']) for (let i = 0; i < BAG[k]; i++) t.push(k); return t; };
+
+  /** Every check, from the published snapshot alone. Returns [{ ok, label, detail }]. */
+  async function verify(snap) {
+    const b = snap.board, rv = b.reveal || {}, out = [];
+    const add = (ok, label, detail = '') => out.push({ ok: !!ok, label, detail });
+    let salt;
+    try { salt = unhex(rv.salt || ''); } catch (e) { add(false, 'Salt is 32 bytes of hex', e.message); return out; }
+    add(salt.length === 32, 'Salt is 32 bytes of hex', `${salt.length} bytes`);
+    const order = String(rv.order || '');
+    const recomputed = await sha256Hex(`grok-tip-board/v1|${b.stake}|${b.n}|${rv.salt}|${order}`);
+    add(recomputed === b.commit.hash, 'SHA-256 of the reveal matches the commitment published at open',
+      `published ${b.commit.hash}\nrecomputed ${recomputed}`);
+    const derived = (await shuffle(tickets(), salt)).map(k => LETTER[k]).join('');
+    add(derived === order, 'Draw order re-derived from the salt matches the revealed order', derived === order ? '400 tickets' : 'first difference at ticket #' + ([...derived].findIndex((c, i) => c !== order[i]) + 1));
+    const counts = { D: 0, B: 0, H: 0, P: 0 }; for (const c of order) counts[c] = (counts[c] || 0) + 1;
+    add(order.length === 400 && counts.D === 192 && counts.B === 2 && counts.H === 1 && counts.P === 205,
+      'The bag holds exactly 192 D · 2 B · 1 H · 205 P', `${order.length} tickets: ${counts.D} D · ${counts.B} B · ${counts.H} H · ${counts.P} P`);
+    const bad = snap.squares.filter(([, k, p]) => order[k - 1] !== LETTER[p]);
+    add(!bad.length, `Every play drew its ticket (play #k → ticket #k), ${snap.squares.length} plays`,
+      bad.length ? `${bad.length} mismatch(es), first: play #${bad[0][1]} on square ${bad[0][0] + 1}` : '');
+    const nos = snap.squares.map(s => s[1]).sort((x, y) => x - y);
+    add(nos.length === b.plays && nos.every((k, i) => k === i + 1), 'Plays are numbered 1…' + b.plays + ' with no gaps');
+    const un = (b.summary && b.summary.unselected) || [];
+    if (un.length) { // unselected prizes on an early close: HMAC(salt, "unselected:i") over the empty squares
+      const played = new Set(snap.squares.map(s => s[0])), empty = [];
+      for (let i = 0; i < 500; i++) if (!played.has(i)) empty.push(i);
+      const spots = await shuffle(empty, salt, 'unselected');
+      const left = { double: 0, big: 0, host: 0 }; for (const c of order.slice(b.plays)) { const k = { D: 'double', B: 'big', H: 'host' }[c]; if (k) left[k]++; }
+      const want = []; for (const k of ['double', 'big', 'host']) for (let i = 0; i < left[k]; i++) want.push(k);
+      const exp = want.map((p, i) => ({ i: spots[i], p })).filter(x => x.i !== undefined);
+      add(JSON.stringify(exp) === JSON.stringify(un.map(x => ({ i: x.i, p: x.p }))), `Unselected prize spots re-derived from the salt (${un.length})`);
+    }
+    return out;
+  }
+
+  /* ---------- exports ---------- */
+  function rows(snap) {
+    const b = snap.board, order = (b.reveal && b.reveal.order) || '';
+    const plays = snap.squares.slice().sort((x, y) => x[1] - y[1]).map(([i, k, p, w]) => ({
+      play_no: k, square: i + 1, player: snap.who[w] ? snap.who[w].name : '', bot: !!(snap.who[w] && snap.who[w].bot),
+      prize: p, prize_name: NAME[p], ticket: order[k - 1] || '' }));
+    const unselected = ((b.summary && b.summary.unselected) || []).map(u => ({ square: u.i + 1, prize: u.p, prize_name: NAME[u.p] }));
+    return { plays, unselected };
+  }
+  const csvCell = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) || /^[=+\-@]/.test(s) ? '"' + (/^[=+\-@]/.test(s) ? "'" : '') + s.replace(/"/g, '""') + '"' : s; };
+  function download(name, type, text) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  const fileBase = b => `tip-board-${b.stake}-${b.n}`;
+  function exportCsv(snap) {
+    const b = snap.board, { plays, unselected } = rows(snap);
+    const lines = [['board', 'play_no', 'square', 'player', 'bot', 'prize', 'ticket'].join(',')];
+    for (const p of plays) lines.push([b.label, p.play_no, p.square, p.player, p.bot ? 'yes' : 'no', p.prize_name, p.ticket].map(csvCell).join(','));
+    for (const u of unselected) lines.push([b.label, '', u.square, 'unselected', '', u.prize_name, ''].map(csvCell).join(','));
+    download(fileBase(b) + '.csv', 'text/csv;charset=utf-8', lines.join('\r\n') + '\r\n');
+  }
+  function exportJson(snap) {
+    const b = snap.board, { plays, unselected } = rows(snap);
+    download(fileBase(b) + '.json', 'application/json', JSON.stringify({
+      board: { label: b.label, stake: b.stake, n: b.n, reason: b.reason, plays: b.plays, openedAt: b.openedAt, closedAt: b.closedAt, carryIn: b.carryIn },
+      commit: b.commit, reveal: b.reveal, summary: b.summary, plays, unselected,
+      verify: state.check ? state.check.map(c => ({ ok: c.ok, check: c.label })) : null,
+    }, null, 2));
+  }
+
+  /* ---------- views ---------- */
+  function renderTabs() {
+    $('#tabs').innerHTML = state.stakes.map(s => `<button class="tab${s === state.stake ? ' on' : ''}" data-stake="${s}">$${s} boards</button>`).join('');
+  }
+  async function loadList(more = false) {
+    if (!more) { state.before = null; $('#closedBody').innerHTML = '<span class="mut">Loading…</span>'; }
+    try {
+      const d = await api(`/api/boards?stake=${state.stake}&limit=20${more && state.before ? '&before=' + state.before : ''}`);
+      const o = d.open[0];
+      $('#openBody').innerHTML = o ? `<div><b>${esc(o.label)}</b> <span class="mut">· ${o.plays}/400 plays · opened ${esc(when(o.openedAt))}</span></div>
+        <div style="margin-top:6px">Commitment: <span class="hash mono" id="openCommit">${esc(o.commit)}</span></div>
+        <div class="mut" style="margin-top:6px">Copy it now; when this board closes, Verify checks the reveal against exactly this hash.</div>` : '<span class="mut">No open board.</span>';
+      const tr = d.closed.map(b => `<tr data-n="${b.n}"><td><b>#${b.n}</b></td><td class="hide-sm">${esc(when(b.closedAt))}</td>
+        <td>${esc(REASON[b.reason] || b.reason)}</td><td>${b.plays}</td><td class="hide-sm"><span class="hash mono" title="${esc(b.commit)}">${esc(short(b.commit))}</span></td>
+        <td><div class="acts"><button class="btn sm pri" data-verify="${b.n}">Verify</button><button class="btn sm" data-csv="${b.n}">CSV</button><button class="btn sm" data-json="${b.n}">JSON</button></div></td></tr>`).join('');
+      const table = $('#closedBody table tbody');
+      if (more && table) table.insertAdjacentHTML('beforeend', tr);
+      else $('#closedBody').innerHTML = d.closed.length ? `<table><thead><tr><th>Board</th><th class="hide-sm">Closed</th><th>Why</th><th>Plays</th><th class="hide-sm">Commitment</th><th></th></tr></thead><tbody>${tr}</tbody></table>`
+        : '<span class="mut">No closed boards yet. The first one shows up here the moment it closes.</span>';
+      state.before = d.nextBefore; $('#more').hidden = !d.nextBefore;
+    } catch (e) { $('#closedBody').innerHTML = `<span class="err">Couldn’t load boards: ${esc(e.message)}</span>`; }
+  }
+  const snapCache = new Map();
+  async function snapshot(n) {
+    const k = `${state.stake}:${n}`;
+    if (!snapCache.has(k)) snapCache.set(k, api(`/api/board/${state.stake}?n=${n}`).catch(e => { snapCache.delete(k); throw e; }));
+    return snapCache.get(k);
+  }
+  async function openVerify(n) {
+    const card = $('#verifyCard'); card.hidden = false;
+    $('#vTitle').textContent = `Verify $${state.stake} Board #${n}`;
+    $('#vBody').innerHTML = '<p class="mut">Re-checking in your browser…</p>';
+    history.replaceState(null, '', `?stake=${state.stake}&n=${n}`);
+    try {
+      const snap = state.snap = await snapshot(n);
+      const checks = state.check = await verify(snap);
+      const ok = checks.every(c => c.ok), b = snap.board, { plays } = rows(snap);
+      const bots = plays.filter(p => p.bot).length;
+      $('#vBody').innerHTML = `
+        <div class="verdict ${ok ? 'ok' : 'bad'}" id="verdict">${ok ? '✅ Verified: this board was locked at open and every draw followed it.' : '❌ Verification failed. Something here doesn’t match the commitment.'}</div>
+        <div class="mut">${esc(b.label)} · ${esc(REASON[b.reason] || b.reason)} · ${b.plays} plays${bots ? ` (${bots} by 🤖 practice players)` : ''} · opened ${esc(when(b.openedAt))} · closed ${esc(when(b.closedAt))}</div>
+        <ul class="checks">${checks.map(c => `<li><span class="${c.ok ? 'ok' : 'bad'}">${c.ok ? '✅' : '❌'}</span> ${esc(c.label)}${c.detail ? `<div class="mono mut" style="white-space:pre-wrap;word-break:break-all;margin-top:2px">${esc(c.detail)}</div>` : ''}</li>`).join('')}</ul>
+        <div style="margin:8px 0 4px"><b>Salt</b> <span class="hash mono">${esc(b.reveal.salt)}</span></div>
+        <div style="margin:8px 0 4px"><b>Draw order</b> <span class="mut">(ticket #1 → #400)</span></div>
+        <div class="order mono">${[...String(b.reveal.order)].map(c => `<b class="${esc(c)}">${esc(c)}</b>`).join('')}</div>
+        <div style="margin:12px 0 6px"><b>Plays</b> <span class="mut">in draw order</span></div>
+        <div class="scroll"><table><thead><tr><th>#</th><th>Square</th><th>Player</th><th>Prize</th><th>Ticket</th></tr></thead><tbody>
+        ${plays.map(p => `<tr><td>${p.play_no}</td><td>${p.square}</td><td>${p.bot ? '<span class="pill bot">🤖</span> ' : ''}${esc(p.player)}</td><td class="prize-${p.prize}">${esc(p.prize_name)}</td><td class="mono">${esc(p.ticket)}</td></tr>`).join('')}
+        </tbody></table></div>`;
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) { $('#vBody').innerHTML = `<p class="err">Couldn’t verify: ${esc(e.message)}</p>`; }
+  }
+  async function withSnap(n, fn) { try { const s = await snapshot(n); fn(s); } catch (e) { alert('Couldn’t load that board: ' + e.message); } }
+
+  document.addEventListener('click', e => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.stake) { state.stake = Number(t.dataset.stake); $('#verifyCard').hidden = true; history.replaceState(null, '', `?stake=${state.stake}`); renderTabs(); loadList(); }
+    else if (t.dataset.verify) openVerify(Number(t.dataset.verify));
+    else if (t.dataset.csv) withSnap(Number(t.dataset.csv), exportCsv);
+    else if (t.dataset.json) withSnap(Number(t.dataset.json), exportJson);
+    else if (t.id === 'more') loadList(true);
+    else if (t.id === 'vCsv' && state.snap) exportCsv(state.snap);
+    else if (t.id === 'vJson' && state.snap) exportJson(state.snap);
+    else if (t.id === 'vClose') { $('#verifyCard').hidden = true; history.replaceState(null, '', `?stake=${state.stake}`); }
+  });
+
+  if (!state.stakes.includes(state.stake)) state.stake = 5;
+  renderTabs(); loadList();
+  if (/^\d+$/.test(qs.get('n') || '')) openVerify(Number(qs.get('n')));
+  window.__fair = { verify, rows, state };
+})();
+</script>
+</body>
+</html>

@@ -26,3 +26,16 @@ export const capFor = boardsPlayed => (boardsPlayed >= CAP_REGULAR_AFTER ? CAP_R
 export const SESSIONS_PER_IP_PER_DAY = 10; // new anonymous players per (hashed) IP per day
 export const PREPICK_MAX = 200;           // Early Access pre-picks (paid + held) per upcoming board
 export const MAX_SQUARES_PER_HOLD = CAP_REGULAR;
+
+// ---- PR 4: bots, admin, rate limits ----
+export const BETA = true;                 // free play-money beta (admin "reset board" is beta-only)
+export const BOT_COUNT = 60;              // labeled 🤖 practice players
+export const BOT_DEFAULT_PER_HOUR = 60;   // bot plays per hour per board: 400 plays in ~6-7 h
+export const BOT_MAX_PER_HOUR = 3600;
+export const BOT_MAX_PER_REQUEST = 20;    // plays a single board-feed request may add (catch-up is spread out)
+export const BOT_MIN_GAP_MS = 5000;       // at most one bot step per board every 5 s
+export const BOT_MAX_BACKLOG_MS = 3 * HOUR; // after a quiet spell, bots catch up at most 3 hours of plays
+export const RATE_WINDOW_S = 60;          // write-endpoint rate limits (per rolling minute)
+export const RATE_PER_PLAYER = 30;
+export const RATE_PER_IP = 120;
+export const ADMIN_TOPUP_MAX = 1000;

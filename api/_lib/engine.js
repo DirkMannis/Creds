@@ -11,6 +11,8 @@
 //   bucket board:<id> winnings from that board (unlocks + settle); paid out or carried at its close
 //   bucket carry:<id> balance kept in play (opt-out), replay credit on board <id>; paid out at its close
 //   wallet.unlocked = sum(amount) over the player's bucketed rows; no bucket ever goes negative.
+//   🤖 practice players (is_bot) use the same rows, but Book.flush routes them to bot_ledger: no wallet,
+//   no human history, no payouts; their board balance is zeroed at close (play money, never sent).
 import { randomInt } from 'node:crypto';
 import { tx, money } from './db.js';
 import { KINDS, unselectedSpots, LETTER } from './bag.js';
@@ -40,23 +42,35 @@ class Book {
   async flush() {
     const { c } = this;
     if (this.rows.length) {
-      const R = this.rows; this.rows = [];
-      await c.query(
-        `INSERT INTO ledger (player_id, kind, bucket, board_id, square, amount, note, ref)
-         SELECT * FROM unnest($1::bigint[], $2::text[], $3::text[], $4::bigint[], $5::smallint[], $6::numeric[], $7::text[], $8::text[])`,
-        [R.map(r => r.player_id), R.map(r => r.kind), R.map(r => r.bucket), R.map(r => r.board_id), R.map(r => r.square),
-          R.map(r => r.amount), R.map(r => r.note), R.map(r => r.ref)]);
-      const delta = new Map();
-      for (const r of R) if (r.bucket) delta.set(String(r.player_id), r2((delta.get(String(r.player_id)) || 0) + r.amount));
-      const ids = [...delta.keys()].filter(k => delta.get(k) !== 0).sort((a, b) => Number(a) - Number(b));
-      if (ids.length) {
-        // lock wallet rows in player-id order (consistent order keeps deadlocks rare; tx() retries any)
-        await c.query(`INSERT INTO wallets (player_id) SELECT unnest($1::bigint[]) ORDER BY 1 ON CONFLICT (player_id) DO NOTHING`, [ids]);
-        await c.query('SELECT 1 FROM wallets WHERE player_id = ANY($1::bigint[]) ORDER BY player_id FOR UPDATE', [ids]);
+      const all = this.rows; this.rows = [];
+      // bot money goes to bot_ledger, so the human ledger, wallets and history never see it
+      const { rows: bots } = await c.query('SELECT id FROM players WHERE id = ANY($1::bigint[]) AND is_bot',
+        [[...new Set(all.map(r => String(r.player_id)))]]);
+      const botSet = new Set(bots.map(x => String(x.id)));
+      const B = all.filter(r => botSet.has(String(r.player_id))), R = all.filter(r => !botSet.has(String(r.player_id)));
+      if (B.length) await c.query(
+        `INSERT INTO bot_ledger (player_id, kind, bucket, board_id, square, amount, note)
+         SELECT * FROM unnest($1::bigint[], $2::text[], $3::text[], $4::bigint[], $5::smallint[], $6::numeric[], $7::text[])`,
+        [B.map(r => r.player_id), B.map(r => r.kind), B.map(r => r.bucket), B.map(r => r.board_id), B.map(r => r.square),
+          B.map(r => r.amount), B.map(r => r.note)]);
+      if (R.length) {
         await c.query(
-          `UPDATE wallets SET unlocked = unlocked + t.d, updated_at = now()
-             FROM unnest($1::bigint[], $2::numeric[]) AS t(pid, d) WHERE wallets.player_id = t.pid`,
-          [ids, ids.map(k => delta.get(k))]);
+          `INSERT INTO ledger (player_id, kind, bucket, board_id, square, amount, note, ref)
+           SELECT * FROM unnest($1::bigint[], $2::text[], $3::text[], $4::bigint[], $5::smallint[], $6::numeric[], $7::text[], $8::text[])`,
+          [R.map(r => r.player_id), R.map(r => r.kind), R.map(r => r.bucket), R.map(r => r.board_id), R.map(r => r.square),
+            R.map(r => r.amount), R.map(r => r.note), R.map(r => r.ref)]);
+        const delta = new Map();
+        for (const r of R) if (r.bucket) delta.set(String(r.player_id), r2((delta.get(String(r.player_id)) || 0) + r.amount));
+        const ids = [...delta.keys()].filter(k => delta.get(k) !== 0).sort((a, b) => Number(a) - Number(b));
+        if (ids.length) {
+          // lock wallet rows in player-id order (consistent order keeps deadlocks rare; tx() retries any)
+          await c.query(`INSERT INTO wallets (player_id) SELECT unnest($1::bigint[]) ORDER BY 1 ON CONFLICT (player_id) DO NOTHING`, [ids]);
+          await c.query('SELECT 1 FROM wallets WHERE player_id = ANY($1::bigint[]) ORDER BY player_id FOR UPDATE', [ids]);
+          await c.query(
+            `UPDATE wallets SET unlocked = unlocked + t.d, updated_at = now()
+               FROM unnest($1::bigint[], $2::numeric[]) AS t(pid, d) WHERE wallets.player_id = t.pid`,
+            [ids, ids.map(k => delta.get(k))]);
+        }
       }
     }
     if (this.payouts.length) {
@@ -235,13 +249,14 @@ async function closeBoard(st, reason) {
   const empties = []; for (let i = 0; i < GRID; i++) if (!played.has(i)) empties.push(i);
   const unselected = unselectedSpots(st.salt, empties, b.bag_left);
   const { rows: names } = bigs.length ? await c.query(
-    'SELECT id, handle, handle_kind, x_user_id FROM players WHERE id = ANY($1::bigint[])', [bigs.map(w => w.player_id)]) : { rows: [] };
-  const nameOf = id => { const p = names.find(x => Number(x.id) === id); return p ? displayName(p) : ''; };
+    'SELECT id, handle, handle_kind, x_user_id, is_bot FROM players WHERE id = ANY($1::bigint[])', [bigs.map(w => w.player_id)]) : { rows: [] };
+  const nameOf = id => { const p = names.find(x => Number(x.id) === id); return p ? (p.is_bot ? '🤖 ' : '') + displayName(p) : ''; };
+  const isBot = id => { const p = names.find(x => Number(x.id) === id); return !!(p && p.is_bot); };
 
   await writeState(st); // settle rows + final flags
   const summary = {
     reason, plays: b.plays, tipsIn: r2(b.plays * b.stake), carryIn: b.carry_in, M,
-    bigs: bigs.map(w => ({ name: nameOf(w.player_id), amount: w.amount, i: w.idx })), bigPaid,
+    bigs: bigs.map(w => ({ name: nameOf(w.player_id), bot: isBot(w.player_id), amount: w.amount, i: w.idx })), bigPaid,
     dblCount: dbl.length, dblPaid, scale: Math.round(scale * 10000) / 10000,
     hostDrawn: b.host_drawn, hostPaid, seeded, leftover, undrawnBig, carryOut, unselected,
   };
@@ -254,14 +269,18 @@ async function closeBoard(st, reason) {
 
   // wallets: unused carried credit pays out; this board's balance pays out (default) or carries (opt-out)
   const { rows: bal } = await c.query(
-    `SELECT l.player_id, l.bucket, sum(l.amount) AS amt, p.keep_balance
-       FROM ledger l JOIN players p ON p.id = l.player_id
-      WHERE l.bucket = ANY($1::text[]) GROUP BY l.player_id, l.bucket, p.keep_balance
+    `SELECT l.player_id, l.bucket, sum(l.amount) AS amt, p.keep_balance, p.is_bot
+       FROM (SELECT player_id, bucket, amount FROM ledger WHERE bucket = ANY($1::text[])
+             UNION ALL SELECT player_id, bucket, amount FROM bot_ledger WHERE bucket = ANY($1::text[])) l
+       JOIN players p ON p.id = l.player_id
+      GROUP BY l.player_id, l.bucket, p.keep_balance, p.is_bot
      HAVING sum(l.amount) > 0 ORDER BY l.player_id`, [[`board:${b.id}`, `carry:${b.id}`]]);
   const kept = [];
   for (const r of bal) {
     const pid = Number(r.player_id), amt = money(r.amt);
-    if (r.bucket === `carry:${b.id}`) {
+    if (r.is_bot) { // bots never carry and nothing is ever sent to them (play money)
+      book.post(pid, 'payout', -amt, { bucket: r.bucket, board_id: b.id, note: `🤖 practice player settled at close · ${label(b.stake, b.n)} · play money, never sent` });
+    } else if (r.bucket === `carry:${b.id}`) {
       book.post(pid, 'payout', -amt, { bucket: r.bucket, board_id: b.id, note: `Carried credit unused at close · ${label(b.stake, b.n)} · would be sent via X Money within 16 h` });
       book.payout(pid, 'carry_unused', amt, b.id);
     } else if (r.keep_balance) {
@@ -277,26 +296,27 @@ async function closeBoard(st, reason) {
   if (kept.length) await c.query('UPDATE players SET keep_balance = false WHERE id = ANY($1::bigint[])', [kept]); // opt-out covers one close
   await c.query(`UPDATE players SET boards_played = boards_played + 1
                   WHERE id IN (SELECT DISTINCT player_id FROM plays WHERE board_id = $1)`, [b.id]);
-  // holds on the closed board, and unpaid Early Access holds for the board that just opened, are released
-  await c.query(`DELETE FROM holds WHERE stake = $1 AND ((NOT early AND board_n = $2) OR (early AND board_n = $3))`, [b.stake, b.n, next.n]);
+  const earlyPlayed = await afterClose(c, b, next, book);
+  return { board: { id: b.id, stake: b.stake, n: b.n }, summary, next: { id: next.id, n: next.n, carryIn: carryOut, earlyPlayed } };
+}
 
-  // Early Access: paid pre-picks are played first, in square order, drawn from the new board's full bag
+/** After board b closed (or was reset) and `next` opened: release stale holds, then play the paid
+ *  Early Access pre-picks on `next` first, in square order, drawn from its full bag. */
+async function afterClose(c, b, next, book) {
+  await c.query(`DELETE FROM holds WHERE stake = $1 AND ((NOT early AND board_n = $2) OR (early AND board_n = $3))`, [b.stake, b.n, next.n]);
   const { rows: pre } = await c.query(
     `SELECT pp.idx, pp.player_id, p.handle, p.handle_kind, p.x_user_id, p.id
        FROM prepicks pp JOIN players p ON p.id = pp.player_id
       WHERE pp.stake = $1 AND pp.board_n = $2 AND NOT pp.played ORDER BY pp.idx`, [b.stake, next.n]);
-  let earlyPlayed = 0;
-  if (pre.length) {
-    const st2 = await loadState(c, next, book);
-    for (const r of pre) {
-      const pid = Number(r.player_id), kind = playSquare(st2, r.idx, { id: pid, name: displayName(r) }, 'early');
-      book.post(pid, 'preplay', 0, { board_id: next.id, square: r.idx, note: `Early Access pick played · ${PRIZE[kind]}` });
-    }
-    await writeState(st2);
-    await c.query('UPDATE prepicks SET played = true WHERE stake = $1 AND board_n = $2', [b.stake, next.n]);
-    earlyPlayed = pre.length;
+  if (!pre.length) { await book.flush(); return 0; }
+  const st2 = await loadState(c, next, book);
+  for (const r of pre) {
+    const pid = Number(r.player_id), kind = playSquare(st2, r.idx, { id: pid, name: displayName(r) }, 'early');
+    book.post(pid, 'preplay', 0, { board_id: next.id, square: r.idx, note: `Early Access pick played · ${PRIZE[kind]}` });
   }
-  return { board: { id: b.id, stake: b.stake, n: b.n }, summary, next: { id: next.id, n: next.n, carryIn: carryOut, earlyPlayed } };
+  await writeState(st2);
+  await c.query('UPDATE prepicks SET played = true WHERE stake = $1 AND board_n = $2', [b.stake, next.n]);
+  return pre.length;
 }
 
 /* ---------------- wallet helpers ---------------- */
@@ -509,3 +529,6 @@ export async function stallCheck(pool, stake) {
 }
 
 export const _internals = { milestone, playSquare, takeFrom, parseSquares, pub };
+
+/** Building blocks for bots.js and admin.js (same transaction rules: lock the board first). */
+export const _core = { Book, loadState, playSquare, writeState, closeBoard, afterClose, normBoard, fail, PRIZE, label };

@@ -260,6 +260,20 @@ body.stale .grid{opacity:.72}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 @media (max-width:640px){.notice{margin:8px;flex-direction:column;align-items:flex-start}.netbar{top:25px}}
 
+/* PR 4: 🤖 practice players, rate-limit toast, admin panel */
+.tile.bot::after{content:"🤖";position:absolute;right:1px;bottom:0;font-size:max(7px,.5em);line-height:1;filter:saturate(.8)}
+.tile.patron.bot{background:#2b3550;color:#c6d1ee}
+.tile.patron.bot::after{content:none}
+.mini .tile.bot::after{content:none}
+.lg.bot{background:#2b3550;width:auto;height:auto;padding:0 2px;font-style:normal;font-size:10px;line-height:11px}
+.botpill{margin-left:6px;font-size:11.5px;font-weight:700;color:#c6d1ee;background:#1b2030;border:1px solid #3a4562;border-radius:999px;padding:2px 8px;vertical-align:middle;cursor:help}
+.toast.slow{border-color:#7a5a20;background:#2a2112}
+.devpanel select{padding:4px 6px;background:#0e0709;border-color:#4a1e28;font-size:12px}
+.devpanel .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.devpanel .err{color:#ff8b98;margin-top:6px}
+.devpanel ul.audit{list-style:none;margin:0 0 6px;padding:0;font:11.5px ui-monospace,monospace}
+.devpanel ul.audit li{padding:2px 0;border-bottom:1px solid #2e141a;display:flex;justify-content:space-between}
+
 </style>
 </head>
 <body>
@@ -305,6 +319,7 @@ body.stale .grid{opacity:.72}
       <span><i class="lg mine"></i>Your tile</span>
       <span><i class="lg sel"></i>Selected</span>
       <span><i class="lg heldx"></i>Held by someone</span>
+      <span><i class="lg bot">🤖</i>Practice player</span>
     </div>
     <div class="selbar" id="selbar"></div>
   </section>
@@ -347,6 +362,8 @@ const TOKEN_KEY = 'grokTipBoard.token', OLD_KEY = 'grokTipBoard.v1', DEVKEY = 'g
 const NOTICE_KEY = 'grokTipBoard.sharedNotice', ONB_KEY = 'grokTipBoard.onboarded', SEEN_KEY = 'grokTipBoard.seenClosed', ACTIVE_KEY = 'grokTipBoard.active';
 const GRID = 500, CLOSE_AT = 400, MILESTONE = 20, BIG_UNLOCK = 100, EA_AT = 10, MANUAL_MAX = 5;
 const NUDGE = 'Enjoying it? Real-tip boards are coming. Your full history log stays here.';
+const BOT_NOTE = 'Beta boards include labeled 🤖 practice players so boards close; removed before real money.';
+const ADMIN_KEY_SS = 'grokTipBoard.adminKey'; // sessionStorage only: gone when this tab closes
 const DAY = 864e5, HOLD_MIN = 5;
 const PRIZE = {
   double: { label: 'Double Up', icon: '2×' },
@@ -386,7 +403,8 @@ async function api(path, { method = 'GET', body, raw = false, retried = false } 
   let data = null; try { data = await res.json(); } catch { }
   if (!res.ok) {
     if (res.status >= 500) setNet('error', ''); else setNet('ok');
-    throw Object.assign(new Error((data && data.error) || `Something went wrong (${res.status}).`), { status: res.status, data });
+    if (res.status === 429 && !(data && data.error)) data = { error: 'Whoa, that’s a lot of taps. Take a breather and try again in a minute.' };
+    throw Object.assign(new Error((data && data.error) || `Something went wrong (${res.status}).`), { status: res.status, data, rateLimited: res.status === 429 });
   }
   setNet('ok'); return data;
 }
@@ -456,8 +474,9 @@ const roomLeft = b => capNow() - mineCount(b) - UI.sel.size;
 const holdLabel = h => h.early ? `${label(h.stake, h.n)} (Early Access)` : label(h.stake, h.n);
 
 /* ===== Toasts ===== */
-function toast(msg) { if (UI.animating) { UI.deferred.push(msg); return; }
-  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; $('toasts').appendChild(t);
+function toast(msg, kind) { if (UI.animating) { UI.deferred.push(msg); return; }
+  if (typeof msg === 'object' && msg) { kind = msg.rateLimited ? 'slow' : kind; msg = msg.message; }
+  const t = document.createElement('div'); t.className = 'toast' + (kind ? ' ' + kind : ''); t.textContent = (kind === 'slow' ? '🐢 ' : '') + msg; $('toasts').appendChild(t);
   setTimeout(() => t.remove(), 4200); }
 function flushToasts() { const d = UI.deferred.splice(0); d.forEach(toast); }
 
@@ -475,7 +494,7 @@ function tileHTML(b, i, opts = {}) {
     return { cls, txt, title };
   }
   if (!opts.archive && UI.revealing.has(i)) { cls += ' drawing mine'; txt = '?'; title += ' · drawing…'; }
-  else if (s) { const nm = (s.bot ? '🤖 ' : '') + s.n; cls += ` ${s.p}${s.o === 'me' ? ' mine' : ''}`; txt = s.p === 'patron' ? (s.n.replace(/^@/, '')[0] || '').toUpperCase() : PRIZE[s.p].icon; title += ` · ${nm}${s.o === 'me' ? ' (you)' : ''} · ${PRIZE[s.p].label}`; }
+  else if (s) { const nm = (s.bot ? '🤖 ' : '') + s.n; cls += ` ${s.p}${s.o === 'me' ? ' mine' : ''}${s.bot ? ' bot' : ''}`; txt = s.p === 'patron' ? (s.bot ? '🤖' : (s.n.replace(/^@/, '')[0] || '').toUpperCase()) : PRIZE[s.p].icon; title += ` · ${nm}${s.bot ? ' (practice player)' : ''}${s.o === 'me' ? ' (you)' : ''} · ${PRIZE[s.p].label}`; }
   else if (opts.unsel && opts.unsel[i]) { const p = opts.unsel[i]; cls += ` ghost ${p}`; txt = PRIZE[p].icon; title += ` · Unselected ${PRIZE[p].label} (display only)`; }
   else if (!opts.archive && b.myHeld && b.myHeld.has(i)) { cls += ' held'; title += ' · held for you'; }
   else if (!opts.archive && b.othersHeld && b.othersHeld.has(i)) { cls += ' heldx'; txt = String(i + 1); title += ' · held by another player (paying now)'; }
@@ -509,7 +528,7 @@ function renderHead() {
   const nextM = (Math.floor(b.plays / MILESTONE) + 1) * MILESTONE;
   setHTML($('boardHead'), `
     <div>
-      <div class="board-title">$${b.stake} Board #${b.n} <span class="sq">· ${GRID} squares</span><span class="shared" title="Everyone sees the same board">👥 Shared</span></div>
+      <div class="board-title">$${b.stake} Board #${b.n} <span class="sq">· ${GRID} squares</span><span class="shared" title="Everyone sees the same board">👥 Shared</span>${botPill()}</div>
       <div class="mut" style="font-size:12.5px">$${b.stake} per square · ${b.carryIn > 0 ? `<b style="color:var(--big)">Carryover ${fmt(b.carryIn)}</b> rides on the first Big Send · ` : ''}closes when ${CLOSE_AT} squares are played or after 5 days</div>
     </div>
     <div class="stats">
@@ -520,6 +539,10 @@ function renderHead() {
       <span class="stat">Your squares <b id="mySq">${b.mine.size}</b>/${capNow()}</span>
     </div>
     <div class="progress" style="flex-basis:100%"><i style="width:${b.plays / CLOSE_AT * 100}%"></i></div>`);
+}
+function botPill() {
+  const f = feed(), bt = f && f.bots; if (!bt) return '';
+  return bt.on ? `<span class="botpill" title="${esc(BOT_NOTE)}">🤖 Practice players on</span>` : '';
 }
 function renderNextHead() {
   const f = feed(), nb = nextB(), mine = myBoard(active).mySquares, cap = capNow(), n = f.board.n;
@@ -622,7 +645,7 @@ function renderFeed() {
   const mb = myBoard(active), mine = new Set(mb.n === f.board.n ? mb.squares : []);
   setHTML($('feedCard'), `<h3>Latest flips <small>${f.board.plays} plays</small></h3>
     <ul class="list" id="feedList">${f.recent.slice(0, 8).map(s => { const w = f.who[s.who] || { name: 'Player' }; return `<li><span><span class="dot ${s.p}"></span>#${s.i + 1} · ${w.bot ? '🤖 ' : ''}${esc(w.name)}${mine.has(s.i) ? ' (you)' : ''}</span><span class="mut">${PRIZE[s.p].label}</span></li>`; }).join('') || '<li class="mut">No plays yet — be first on the board.</li>'}</ul>
-    <div class="mut" style="font-size:11.5px;margin-top:6px">Tip routing stays private: nobody sees who tipped whom.</div>`);
+    <div class="mut" style="font-size:11.5px;margin-top:6px">Tip routing stays private: nobody sees who tipped whom.${f.who.some(w => w.bot) ? ' 🤖 = practice player (play money).' : ''}</div>`);
 }
 function renderArchive() {
   const all = []; for (const f of Object.values(API.feed)) if (f && f.recentClosed) for (const r of f.recentClosed) all.push({ ...r, stake: f.board.stake });
@@ -630,7 +653,8 @@ function renderArchive() {
   setHTML($('archiveCard'), `<h3>Closed boards <small>${all.length ? 'latest' : ''}</small></h3>
     <ul class="list">${all.slice(0, 8).map(r => `<li><span>$${r.stake} Board #${r.n} · ${reasonText(r.reason)} · ${r.plays} of ${GRID}</span><button class="btn sm" data-act="viewArchive" data-stake="${r.stake}" data-n="${r.n}">View</button></li>`).join('') || '<li class="mut">None yet.</li>'}</ul>`);
 }
-const reasonText = r => r === 'full' ? 'Full' : r === 'stall' ? '5-day stall' : 'Closed early';
+const reasonText = r => r === 'full' ? 'Full' : r === 'stall' ? '5-day stall' : r === 'reset' ? 'Reset (beta)' : r === 'admin' ? 'Closed by admin' : 'Closed early';
+const fairUrl = (stake, n) => `/fair?stake=${stake}&n=${n}`;
 function renderMe() { $('meChip').textContent = me() ? (me().player.handleKind === 'x' ? '𝕏 ' : '🎭 ') + meName() : '…'; }
 function renderNet() {
   const el = $('netbar'); if (!el) return;
@@ -705,9 +729,9 @@ async function payHold(method) {
   catch (e) {
     busy(false);
     const pe = $('payErr');
-    if (e.status === 402 && pe) { pe.textContent = e.message; return; }
+    if ((e.status === 402 || e.status === 429) && pe) { pe.textContent = e.message; return; }
     if (e.net && pe) { pe.textContent = e.message + ' Your hold is kept until it expires.'; return; }
-    closeModal('pay'); toast(e.message); await refreshAll(); return;
+    closeModal('pay'); toast(e); await refreshAll(); return;
   }
   busy(false);
   me().hold = null; UI.sel.clear(); closeModal('pay');
@@ -779,7 +803,7 @@ function tileModal(i) {
 }
 function miniGrid(snap) {
   const unsel = {}; (snap.board.summary.unselected || []).forEach(u => { unsel[u.i] = u.p; });
-  const sq = Array(GRID).fill(null); for (const [i, k, p, w] of snap.squares) sq[i] = { o: 'x', n: (snap.who[w] || {}).name || '', p, k };
+  const sq = Array(GRID).fill(null); for (const [i, k, p, w] of snap.squares) sq[i] = { o: 'x', n: (snap.who[w] || {}).name || '', bot: !!(snap.who[w] || {}).bot, p, k };
   const fake = { stake: snap.board.stake, sq };
   let h = ''; for (let i = 0; i < GRID; i++) { const t = tileHTML(fake, i, { archive: true, unsel }); h += `<div class="${t.cls}" title="${esc(t.title)}"></div>`; }
   return `<div class="mini">${h}</div>`;
@@ -803,6 +827,19 @@ async function summaryModal(stake, n, { auto = false } = {}) {
   const carryPaid = r2(-sumBy(E.filter(e => e.kind === 'payout' && e.event !== 'Payout at close'), e => e.amount));
   const carried = r2(-sumBy(E.filter(e => e.kind === 'carry' && e.amount < 0), e => e.amount));
   const count = sqs.size, myBest = big ? 'big' : dbl ? 'double' : 'patron';
+  if (P.voided) {
+    const refund = r2(sumBy(E.filter(e => e.kind === 'adjust' && e.amount > 0), e => e.amount));
+    openModal('summary', `<h2>$${stake} Board #${B.n} was reset</h2>
+    <p class="sub">${playedLine(B)} · opened ${new Date(B.openedAt).toLocaleString()} · reset ${new Date(B.closedAt).toLocaleString()}</p>
+    <div class="note">The admin reset this board during the free beta. Every play on it was refunded to the player's wallet as play money, and winnings unlocked on it were voided. Carried credit and carryover move to Board #${B.n + 1}.</div>
+    <dl class="kv"><dt>Plays refunded</dt><dd>${B.plays} · ${fmt(P.refunded || 0)} to players${B.plays ? ' (🤖 practice plays aren’t refunded)' : ''}</dd>
+      <dt>Carryover → #${B.n + 1}</dt><dd>${fmt(P.carryOut)}</dd>
+      <dt>Fairness</dt><dd><span class="mono">${esc((B.commit.hash || '').slice(0, 16))}…</span> <a href="${fairUrl(stake, B.n)}" target="_blank" rel="noopener" data-fair>Verify it yourself ↗</a></dd></dl>
+    <div class="note"><b>You:</b> ${plural(count, 'square')}${refund ? ` · refunded <b>${fmt(refund)}</b> to your wallet` : ''}</div>
+    ${miniGrid(snap)}
+    <div class="acts"><button class="btn pri" data-close data-goto="${stake}">Go to $${stake} Board #${B.n + 1} →</button></div>`, true);
+    return;
+  }
   openModal('summary', `<h2>$${stake} Board #${B.n} closed · ${reasonText(B.reason)}</h2>
     <p class="sub">${playedLine(B)} · opened ${new Date(B.openedAt).toLocaleString()} · closed ${new Date(B.closedAt).toLocaleString()}</p>
     <dl class="kv">
@@ -813,7 +850,7 @@ async function summaryModal(stake, n, { auto = false } = {}) {
       ${P.seeded ? `<dt>Seeded by host</dt><dd>${fmt(P.seeded)}</dd>` : ''}
       <dt>Carryover → #${B.n + 1}</dt><dd>${fmt(P.carryOut)}${P.undrawnBig ? ` <span class="mut">(incl. ${P.undrawnBig} undrawn Big Send${P.undrawnBig > 1 ? 's' : ''})</span>` : ''}</dd>
       <dt>Unselected prizes</dt><dd>${unselArr.length ? `${u.double} Double Up · ${u.big} Big Send · ${u.host} Host Tip <span class="mut">(display only, dashed tiles)</span>` : 'none — every prize was drawn'}</dd>
-      <dt>Fairness</dt><dd title="SHA-256 commitment published at open; salt and draw order revealed at close"><span class="mono">${esc((B.commit.hash || '').slice(0, 16))}…</span> <span class="mut">bag order revealed</span></dd>
+      <dt>Fairness</dt><dd title="SHA-256 commitment published at open; salt and draw order revealed at close"><span class="mono">${esc((B.commit.hash || '').slice(0, 16))}…</span> <a href="${fairUrl(stake, B.n)}" target="_blank" rel="noopener" data-fair>Verify it yourself ↗</a></dd>
     </dl>
     <div class="note"><b>You:</b> ${plural(count, 'square')} · ${dbl} Double Up · ${big} Big Send · won ${fmt(won)}${count >= EA_AT ? ' · ⚡ Early Access on the next board' : ''}
       ${cashed ? `<br>Auto payout: <b>${fmt(cashed)}</b> would be sent to you via X Money within 16 h and can no longer be played.` : ''}${carried ? `<br>Kept in play: <b>${fmt(carried)}</b> carried to Board #${B.n + 1} as replay credit (auto-pays when it closes if unused).` : ''}${carryPaid ? `<br>Carried credit unused: <b>${fmt(carryPaid)}</b> would be sent via X Money within 16 h.` : ''}
@@ -827,6 +864,7 @@ async function summaryModal(stake, n, { auto = false } = {}) {
 function playedLine(B) {
   if (B.reason === 'full') return `${B.plays} of ${GRID} squares played · the other ${GRID - B.plays} stay unselected`;
   if (B.reason === 'stall') return `Stalled after 5 days at ${B.plays} of ${GRID} squares`;
+  if (B.reason === 'reset') return `Reset during the beta at ${B.plays} of ${GRID} squares · plays refunded`;
   return `Closed early at ${B.plays} of ${GRID} squares`;
 }
 function seenClosed() { try { return JSON.parse(ls.get(SEEN_KEY)) || {}; } catch { return {}; } }
@@ -850,7 +888,7 @@ function rulesHTML() {
   <table><tr><th>Prize</th><th>Count</th><th>Pays ($5)</th></tr>
   <tr><td>Double Up</td><td>192</td><td>2 tips · $10</td></tr><tr><td>Big Send</td><td>2</td><td>5 tips · $25 (+ carryover on the first)</td></tr>
   <tr><td>Host Tip</td><td>1</td><td>host, $5 ×5, at close</td></tr><tr><td>Patron</td><td>205</td><td>tile only</td></tr></table>
-  <p class="mut">399 tips paid out, 1 tip seeds the next board's carryover. One prize ticket per played square, 400 in all. The bag is shuffled and locked when a board opens (its fingerprint is published then, and the full order is revealed at close). Each paid square gets the next prize in that order.</p>
+  <p class="mut">399 tips paid out, 1 tip seeds the next board's carryover. One prize ticket per played square, 400 in all. The bag is shuffled and locked when a board opens (its fingerprint is published then, and the full order is revealed at close). Each paid square gets the next prize in that order. Check any board yourself on the <a href="/fair" target="_blank" rel="noopener" data-fair>Fairness page</a>.</p>
   <h4>How to play</h4><ul><li>Pick squares (cap: 20 per board while new, 40 after 2 boards; replays count).</li><li>Squares are held <b>5 min</b> with a memo code like GROK-7Q4.</li><li>Send $5 × squares via X Money with the code in the note (simulated here).</li><li>Tiles flip one at a time, in square order.</li><li>Tap squares, or type up to 5 square numbers (like 12, 88, 247).</li></ul>
   <h4>Unlock ladder</h4><ul><li>Wins show as pending right away.</li><li>Every 20 paid plays (replays count): Double Ups drawn since the last milestone even up ($5 back), and older ones unlock their profit, oldest first.</li><li>Big Sends unlock from 100 plays (or the next 20-play milestone if drawn later).</li><li>Host Tip pays at close only.</li></ul>
   <h4>Wallet</h4><ul><li>Winnings land as Pending, then Unlocked.</li><li>Replay unlocked dollars into squares on any open board, Cash out (sent within 16 hours), or hold.</li><li>At close, your wallet balance is sent to you via X Money within 16 hours and can no longer be played. (Each board settles its own winnings when it closes.)</li><li>Opt-out: tick <b>Keep my balance in play</b> to carry that balance to the next board as replay credit instead. It covers one close, then resets, and anything still unused when that next board closes is paid out then.</li></ul>
@@ -858,29 +896,95 @@ function rulesHTML() {
   <h4>Next board</h4><ul><li>Play 10 or more of the 500 squares on the open board to unlock Early Access: pre-pick and pay for squares on the next board from the <b>Next board</b> tab, and they're played the moment it opens.</li></ul>
   <h4>Your history</h4><ul><li>Every play, win, unlock, replay, cash-out, carry and payout is logged. Your full history log can be downloaded as CSV.</li></ul>
   <div class="note beta">${NUDGE}</div>
-  <h4>Fair play</h4><ul><li>Disputed or reversed tips void that square and any pending wins, and ban the player.</li><li>Display names are screened: no slurs, gross stuff, “official”, or lookalike handles. @handles show only after Sign in with X; until then you're “Player 0123” or a screened in-game handle.</li></ul>
+  <h4>Practice players</h4><ul><li>${BOT_NOTE}</li><li>They're marked 🤖 on tiles, in the latest flips and in board history. They play with play money only, follow the same square cap, never take a square someone is holding, never use Early Access, and their play money is kept in a separate ledger, never in anyone's wallet.</li></ul>
+  <h4>Fair play</h4><ul><li>Every board's prize bag is locked with a published SHA-256 fingerprint at open and revealed at close. The <a href="/fair" target="_blank" rel="noopener" data-fair>Fairness page</a> lists every board's fingerprint, re-checks closed boards in your browser, and exports their plays (CSV / JSON).</li><li>Disputed or reversed tips void that square and any pending wins, and ban the player.</li><li>Display names are screened: no slurs, gross stuff, “official”, or lookalike handles. @handles show only after Sign in with X; until then you're “Player 0123” or a screened in-game handle.</li></ul>
   <p class="mut">Not legal advice. Real-money play is pending legal review and payment-app terms.</p>`;
 }
 
-/* ===== Dev panel (?dev=1). Admin tools arrive in PR 4. ===== */
+/* ===== Dev panel (?dev=1) + admin API (x-admin-key; the key lives in sessionStorage only) ===== */
+const ss = { get: k => { try { return sessionStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch { } }, del: k => { try { sessionStorage.removeItem(k); } catch { } } };
+const ADM = { status: null, err: '', busy: false, html: '' };
+async function adminApi(action, body) {
+  const key = ss.get(ADMIN_KEY_SS); if (!key) throw new Error('Enter the admin key first.');
+  let res;
+  try { res = await fetch(`/api/admin/${action}`, { method: body === undefined ? 'GET' : 'POST', headers: { 'x-admin-key': key, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' }); }
+  catch { throw new Error('Can’t reach the server.'); }
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 404 && !data.ok) { if (action === 'status') { ss.del(ADMIN_KEY_SS); ADM.status = null; } throw new Error('Admin key not accepted (or ADMIN_KEY isn’t set on the server).'); }
+  if (!res.ok) throw new Error(data.error || `Admin ${action} failed (${res.status}).`);
+  return data;
+}
+async function adminRefresh() {
+  if (!ss.get(ADMIN_KEY_SS)) { ADM.status = null; renderAdmin(); return; }
+  try { ADM.status = await adminApi('status'); ADM.err = ''; } catch (e) { ADM.err = e.message; }
+  renderAdmin();
+}
 function renderDev() {
   const f = feed(), m = me(), p = $('devPanel');
-  setHTML(p, `<h4>DEV · shared-board beta</h4>
-  <div class="note">Admin tools arrive in PR 4. Boards are shared now, so the local simulation controls (top-ups, simulated players, force close, clock skips, hidden bag) are disabled.</div>
-  <div class="grp"><table>
+  if (!$('devInfo')) p.innerHTML = '<h4>DEV · shared-board beta</h4><div id="devInfo"></div><div id="devAdmin"></div>';
+  setHTML($('devInfo'), `<div class="grp"><table>
     <tr><td>Player</td><td>${m ? '#' + m.player.id + ' · ' + esc(m.player.name) : '…'}</td></tr>
     <tr><td>Board</td><td>${f ? `${label(f.board.stake, f.board.n)} · v${esc(f.board.version)}` : '…'}</td></tr>
     <tr><td>Commit</td><td class="mono">${f ? esc(f.board.commit.hash.slice(0, 16)) + '…' : '…'}</td></tr>
+    <tr><td>Bots</td><td>${f && f.bots ? (f.bots.on ? `on · ${f.bots.perHour}/h per board` : 'off') : '…'}</td></tr>
     <tr><td>Network</td><td>${esc(API.net)} · last poll ${API.lastPoll ? Math.round((Date.now() - API.lastPoll) / 1000) + 's ago' : 'never'}</td></tr>
   </table></div>
-  <div class="grp"><div class="row"><button class="btn sm" data-dev="poll">Poll now</button><button class="btn danger sm" data-dev="newPlayer">New anonymous player</button></div></div>
-  <div class="grp off" title="admin tools arrive in PR 4"><label>Local simulation (disabled)</label><div class="row">
-    <button class="btn sm" disabled>Top up</button><button class="btn sm" disabled>Add N plays</button><button class="btn sm" disabled>Fill to 400</button><button class="btn warn sm" disabled>Force close</button><button class="btn sm" disabled>+5 days</button></div>
-    <div class="mut" style="font-size:11.5px;margin-top:4px">admin tools arrive in PR 4</div></div>`);
+  <div class="grp"><div class="row"><button class="btn sm" data-dev="poll">Poll now</button><button class="btn sm" data-dev="fair">Fairness page ↗</button><button class="btn danger sm" data-dev="newPlayer">New anonymous player</button></div></div>`);
+  renderAdmin();
+}
+function renderAdmin() {
+  const el = $('devAdmin'); if (!el) return;
+  const key = ss.get(ADMIN_KEY_SS), st = ADM.status, f = feed(), m = me();
+  let h;
+  if (!key) h = `<div class="grp" id="admLogin"><label>Admin</label><div class="mut" style="margin-bottom:6px">Admin actions need the ADMIN_KEY. It’s kept in this tab’s sessionStorage only and sent as the x-admin-key header.</div>
+    <div class="row"><button class="btn warn sm" data-dev="adminKey">Enter admin key</button></div>${ADM.err ? `<div class="err" id="admErr">${esc(ADM.err)}</div>` : ''}</div>`;
+  else if (!st) h = `<div class="grp"><label>Admin</label><div class="mut">${ADM.err ? `<span class="err" id="admErr">${esc(ADM.err)}</span>` : 'Checking key…'}</div><div class="row" style="margin-top:6px"><button class="btn sm" data-dev="adminRetry">Retry</button><button class="btn sm" data-dev="adminForget">Forget key</button></div></div>`;
+  else {
+    const stake = active, ob = st.boards.find(b => b.stake === stake), bt = st.bots;
+    const speeds = [30, 60, 120, 300, 600, 1200, 3600];
+    h = `<div class="grp" id="admPanel"><label>Admin · $${stake} board ${ob ? `#${ob.n} · ${ob.plays}/${CLOSE_AT}` : ''} <span class="mut">(every action is audited)</span></label>
+      <div class="row"><button class="btn warn sm" data-dev="adm:close" ${ADM.busy ? 'disabled' : ''}>Force close</button><button class="btn sm" data-dev="adm:stall24" ${ADM.busy ? 'disabled' : ''}>Stall +24 h</button><button class="btn sm" data-dev="adm:stallNow" ${ADM.busy ? 'disabled' : ''}>Stall due now</button><button class="btn danger sm" data-dev="adm:reset" ${ADM.busy ? 'disabled' : ''}>Reset board (beta)</button></div>
+      <div class="mut" style="font-size:11.5px;margin-top:4px">Stall closes ${ob ? esc(new Date(ob.stallAt).toLocaleString()) : '…'}</div></div>
+    <div class="grp"><label>Credit top-up (play money)</label><div class="row">Player # <input id="admPid" inputmode="numeric" value="${m ? m.player.id : ''}"> $ <input id="admAmt" inputmode="decimal" value="50"><button class="btn sm" data-dev="adm:credit" ${ADM.busy ? 'disabled' : ''}>Credit</button></div></div>
+    <div class="grp"><label>🤖 Practice players ${bt.env ? '' : '<span class="err">(BOTS_ENABLED is off on the server)</span>'}</label><div class="row">
+      <button class="btn sm ${bt.admin ? 'good' : ''}" data-dev="adm:botsOn" id="admBotsOn" ${ADM.busy ? 'disabled' : ''}>On</button><button class="btn sm ${bt.admin ? '' : 'warn'}" data-dev="adm:botsOff" id="admBotsOff" ${ADM.busy ? 'disabled' : ''}>Off</button>
+      <select id="admSpeed">${speeds.concat(speeds.includes(bt.perHour) ? [] : [bt.perHour]).map(v => `<option value="${v}" ${v === bt.perHour ? 'selected' : ''}>${v}/h</option>`).join('')}</select><button class="btn sm" data-dev="adm:speed" ${ADM.busy ? 'disabled' : ''}>Set speed</button></div>
+      <div class="mut" style="font-size:11.5px;margin-top:4px">${bt.enabled ? `On · ${bt.perHour} plays/hour per board (~${Math.round(CLOSE_AT / bt.perHour * 10) / 10} h to fill)` : 'Off'} · ${st.botPlayers} bot players</div></div>
+    <div class="grp"><label>Audit log <span class="mut">(latest)</span></label><ul class="audit" id="admAudit">${st.audit.slice(0, 6).map(a => `<li><span class="${a.args && a.args.ok === false ? 'err' : ''}">${esc(a.action)}${a.args && a.args.ok === false ? ' ✗' : ''}</span> <span class="mut">${esc(new Date(a.at).toLocaleTimeString())}</span></li>`).join('') || '<li class="mut">No admin actions yet.</li>'}</ul>
+      <div class="row"><button class="btn sm" data-dev="adminRetry">Refresh</button><button class="btn sm" data-dev="adminForget">Forget key</button></div>${ADM.err ? `<div class="err" id="admErr">${esc(ADM.err)}</div>` : ''}</div>`;
+  }
+  // keep typed values across re-renders
+  const keep = ['admPid', 'admAmt', 'admSpeed'].map(id => [id, $(id) && $(id).value]);
+  if (ADM.html !== h) { el.innerHTML = h; ADM.html = h; for (const [id, v] of keep) if (v && $(id)) $(id).value = v; }
+}
+async function adminDo(what) {
+  const stake = active;
+  const calls = {
+    close: () => confirm(`Force-close the $${stake} board now? It settles exactly like a normal close.`) && adminApi('close', { stake }),
+    stall24: () => adminApi('stall', { stake, hours: 24 }),
+    stallNow: () => confirm(`Make the $${stake} board's 5-day stall due now? It closes if it has plays.`) && adminApi('stall', { stake }),
+    reset: () => { const c = prompt(`Reset the $${stake} board (beta only)? Plays are refunded to wallets, unlocked winnings on it are voided, and the next board opens. Type RESET to confirm.`); return c === 'RESET' ? adminApi('reset', { stake, confirm: 'RESET' }) : null; },
+    credit: () => adminApi('credit', { playerId: Number($('admPid').value), amount: Number($('admAmt').value) }),
+    botsOn: () => adminApi('bots', { enabled: true }),
+    botsOff: () => adminApi('bots', { enabled: false }),
+    speed: () => adminApi('bots', { perHour: Number($('admSpeed').value) }),
+  };
+  if (ADM.busy || !calls[what]) return;
+  ADM.busy = true; ADM.err = ''; renderAdmin();
+  try {
+    const r = await calls[what]();
+    if (r) toast(`ADMIN: ${what === 'close' ? `closed Board #${r.closed}` : what === 'reset' ? `reset Board #${r.reset} · refunded ${fmt(r.refunded)}` : what === 'credit' ? `credited ${fmt(r.credited)} to player #${r.playerId}` : what.startsWith('stall') ? (r.closed ? `stall closed Board #${r.closed}` : `stall clock moved · closes ${new Date(r.stallAt).toLocaleString()}`) : `bots ${r.bots.enabled ? 'on' : 'off'} · ${r.bots.perHour}/h`}`);
+  } catch (e) { ADM.err = e.message; toast('ADMIN: ' + e.message); }
+  ADM.busy = false; renderAdmin(); await adminRefresh(); await refreshAll();
 }
 async function dev(act) {
   if (act === 'poll') { await pollNow(); toast('DEV: polled'); }
+  if (act === 'fair') window.open('/fair?stake=' + active, '_blank', 'noopener');
   if (act === 'newPlayer') { if (!confirm('Forget this browser’s player and start as a new anonymous player? This play-money wallet can’t be recovered.')) return; ls.del(TOKEN_KEY); ls.del(ONB_KEY); location.reload(); }
+  if (act === 'adminKey') { const k = prompt('Admin key (kept in this tab’s sessionStorage only):'); if (!k) return; ss.set(ADMIN_KEY_SS, k.trim()); ADM.err = ''; ADM.status = null; renderAdmin(); await adminRefresh(); if (ADM.status) toast('ADMIN: key accepted'); }
+  if (act === 'adminRetry') await adminRefresh();
+  if (act === 'adminForget') { ss.del(ADMIN_KEY_SS); ADM.status = null; ADM.err = ''; renderAdmin(); toast('ADMIN: key forgotten'); }
+  if (act.startsWith('adm:')) await adminDo(act.slice(4));
 }
 
 /* ===== Interactions ===== */
@@ -920,26 +1024,27 @@ async function hold() {
     UI.busy = false;
     const d = e.data || {};
     for (const i of [...(d.taken || []), ...(d.held || [])]) UI.sel.delete(i);
-    mMsg(e.message); toast(e.message);
+    mMsg(e.message); toast(e);
+    if (e.rateLimited) return;
     await refreshAll();
   }
 }
 async function cancelHold() {
   if (UI.busy) return; busy(true);
   try { await api('/api/hold', { method: 'DELETE' }); if (me()) me().hold = null; closeModal('pay'); toast('Hold cancelled — squares are back on the board.'); }
-  catch (e) { toast(e.message); }
+  catch (e) { const pe = $('payErr'); if (e.rateLimited && pe) pe.textContent = e.message; else toast(e); }
   busy(false); await refreshAll();
 }
 async function cashOut() {
   if (UI.busy) return; UI.busy = true;
   try { const r = await api('/api/cashout', { method: 'POST', body: {} }); toast(`💸 Cash-out of ${fmt(r.amount)} requested — would be sent within 16 hours (free beta: nothing is sent)`); }
-  catch (e) { toast(e.message); }
+  catch (e) { toast(e); }
   UI.busy = false; await refreshAll();
 }
 async function setKeep(on) {
   try { const r = await api('/api/keep', { method: 'POST', body: { on } }); me().player.keepBalance = r.keepBalance; renderWallet();
     toast(r.keepBalance ? 'Your balance will carry to the next board at close (this close only).' : 'Default restored: your balance would be paid out at close.'); }
-  catch (e) { toast(e.message); $('walletCard').__h = ''; renderWallet(); }
+  catch (e) { toast(e); $('walletCard').__h = ''; renderWallet(); }
 }
 
 /* Manual entry: up to 5 square numbers, comma/space separated. All-or-nothing, with inline errors, checked against the latest server state. */
@@ -1015,7 +1120,7 @@ document.addEventListener('focusin', e => { if (e.target.id === 'nmG') { const r
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!$('drawer').hidden) $('drawer').hidden = true; else if (UI.modal && UI.modal !== 'name') closeModal(); } if (e.key === 'Enter' && UI.modal === 'name') saveName(); });
 $('rulesBtn').onclick = () => { $('rulesBody').innerHTML = rulesHTML(); $('drawer').hidden = false; };
 $('meChip').onclick = () => { if (me()) onboarding(true); };
-$('devToggle').onclick = () => { const open = $('devPanel').hidden; $('devPanel').hidden = !open; $('devToggle').classList.toggle('on', open); if (open) renderDev(); };
+$('devToggle').onclick = () => { const open = $('devPanel').hidden; $('devPanel').hidden = !open; $('devToggle').classList.toggle('on', open); if (open) { renderDev(); adminRefresh(); } };
 
 /* ===== Polling: the open board every pollMs while the tab is visible; the other stake every 5th poll ===== */
 let pollT = 0, polling = null, tickN = 0, lastMe = 0;
@@ -1068,7 +1173,7 @@ $('devToggle').hidden = !DEV_ON; document.body.classList.toggle('dev', DEV_ON);
   if (!ls.get(ONB_KEY) && me()) onboarding(false);
 })();
 setInterval(tick, 1000);
-window.__tip = { API, UI, get active() { return active; }, manualPick, pollNow, refreshAll, cur, rulesHTML, DEV_ON };
+window.__tip = { API, UI, ADM, get active() { return active; }, manualPick, pollNow, refreshAll, cur, rulesHTML, DEV_ON };
 })();
 
 </script>

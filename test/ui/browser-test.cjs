@@ -30,7 +30,8 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
   fs.mkdirSync(SHOTS, { recursive: true }); fs.rmSync(DL, { recursive: true, force: true }); fs.mkdirSync(DL, { recursive: true });
   const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] });
   const errs = [];
-  const wire = p => { p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); }); p.on('dialog', d => d.accept()); };
+  const wire = p => { p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
+    p.on('dialog', d => d.accept(d.type() === 'prompt' && p.__prompt ? p.__prompt(d.message()) : undefined)); };
   async function newPage(vp = { width: 1360, height: 1000 }, path = '', pre) {
     const ctx = await browser.createBrowserContext(); const p = await ctx.newPage(); wire(p); await p.setViewport(vp);
     if (pre) await p.evaluateOnNewDocument(pre);
@@ -90,16 +91,16 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     A = p;
   }
 
-  /* ---------- B. DEV hidden unless ?dev=1; sim-only actions disabled with PR 4 note ---------- */
+  /* ---------- B. DEV hidden unless ?dev=1; admin needs a key (PR 4) ---------- */
   {
     const vis = p => p.$eval('#devToggle', e => { const r = e.getBoundingClientRect(); return !e.hidden && getComputedStyle(e).display !== 'none' && r.width > 0; });
     check('DEV button hidden without ?dev=1', !(await vis(A)));
     const p = await newPage(undefined, '?dev=1'); await onboard(p);
     check('DEV button visible with ?dev=1', await vis(p));
     await p.click('#devToggle'); await sleep(150);
-    const dp = await p.$eval('#devPanel', e => ({ text: e.innerText, dis: [...e.querySelectorAll('.grp.off button')].every(b => b.disabled), n: e.querySelectorAll('.grp.off button').length }));
-    check('DEV panel notes "admin tools arrive in PR 4"', /admin tools arrive in PR 4/i.test(dp.text));
-    check('local simulation actions are disabled', dp.n >= 4 && dp.dis, `${dp.n} buttons`);
+    const dp = await p.$eval('#devPanel', e => ({ text: e.innerText, key: !!e.querySelector('[data-dev=adminKey]'), adm: !!e.querySelector('#admPanel') }));
+    check('DEV panel no longer says "admin tools arrive in PR 4"', !/arrive in PR ?4/i.test(dp.text), dp.text.slice(0, 200));
+    check('DEV panel asks for the admin key (sessionStorage only) before showing admin actions', dp.key && !dp.adm && /sessionStorage only/.test(dp.text));
     await p.browserContext().close();
   }
 
@@ -111,6 +112,8 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     check('rules have no 15-minute hold text', !/15[ -]min/i.test(r));
     check('rules have no Lifetime +/−', !/lifetime/i.test(r));
     check('rules keep a history/CSV section', /history log can be downloaded as CSV/.test(r));
+    check('rules disclose the bots: "Beta boards include labeled 🤖 practice players so boards close; removed before real money"', r.includes('Beta boards include labeled 🤖 practice players so boards close; removed before real money'));
+    check('rules link to the Fairness page (/fair)', await A.$eval('#rulesBody', e => !!e.querySelector('a[href="/fair"]')));
     await A.screenshot({ path: SHOTS + '10-desktop-rules.png' });
     await A.click('[data-close-drawer]');
   }
@@ -281,6 +284,7 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     check('summary reveals Unselected prizes', /Unselected prizes/.test(s) && (await A.$$('.modal .mini .ghost')).length > 0);
     check('summary shows my squares', /You: 10 squares/.test(s), (s.match(/You:[^\n]*/) || [''])[0]);
     check('summary has no Lifetime', !/lifetime/i.test(s));
+    check('summary Fairness row links to /fair for this board', !!(await A.$('.modal[data-kind=summary] a[href="/fair?stake=5&n=1"]')));
     await A.screenshot({ path: SHOTS + '10-desktop-summary.png' });
     await A.click('.modal [data-close]');
     check('new board is open after close', await waitFor(() => A.evaluate(() => window.__tip.API.feed[5].board.n === 2)));
@@ -343,6 +347,144 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
     await M.screenshot({ path: SHOTS + '10-mobile-rules.png' });
     check('mobile: rules drawer shows the 5-min hold', /held 5 min/.test(await M.$eval('#rulesBody', e => e.innerText)));
     await M.browserContext().close();
+  }
+
+  /* ---------- P. PR 4: friendly 429, admin dev panel, 🤖 bots, /fair verify + exports ---------- */
+  const ADMIN_KEY = 'local-test-admin-key-0123456789';
+  {
+    // friendly 429: this player has used up the per-minute write budget
+    const myId = await A.evaluate(() => window.__tip.API.me.player.id);
+    await call(`/__test/rateFill?player=${myId}&n=30`);
+    const before = await A.$eval('#keepBal', e => e.checked);
+    await A.click('#keepBal');
+    const t = await waitFor(() => A.evaluate(() => { const x = [...document.querySelectorAll('.toast.slow')].pop(); return x && x.textContent; }), 4000);
+    check('rate limit: friendly 429 toast ("take a breather … try again in N s")', /🐢/.test(t || '') && /breather/.test(t || '') && /try again in \d+ s/.test(t || ''), t);
+    check('rate limit: the toggle snaps back (nothing changed on the server)', await waitFor(async () => (await A.$eval('#keepBal', e => e.checked)) === before, 3000));
+    await A.screenshot({ path: SHOTS + '11-desktop-429-toast.png' });
+    await call('/__test/rateClear');
+  }
+  let D;
+  const domClick = (pg, sel) => pg.evaluate(q => { const e = document.querySelector(q); if (!e) return false; e.click(); return true; }, sel);
+  {
+    D = await newPage(undefined, '?dev=1'); await onboard(D);
+    await D.click('#devToggle'); await sleep(200);
+    D.__prompt = () => 'wrong-key-wrong-key';
+    await D.click('[data-dev=adminKey]');
+    const bad = await waitFor(() => D.$eval('#devAdmin', e => e.innerText.includes('not accepted') && e.innerText), 4000);
+    check('admin: a wrong key is refused (404 → "not accepted") and forgotten', !!bad && await D.evaluate(() => sessionStorage.getItem('grokTipBoard.adminKey') === null), bad);
+    D.__prompt = () => ADMIN_KEY;
+    await D.click('[data-dev=adminKey]');
+    check('admin: correct key unlocks the admin controls', !!(await waitFor(() => D.$('#admPanel'), 5000)));
+    check('admin: key kept in sessionStorage only (not localStorage)', await D.evaluate(k => sessionStorage.getItem('grokTipBoard.adminKey') === k && !Object.keys(localStorage).some(x => (localStorage.getItem(x) || '').includes(k)), ADMIN_KEY));
+    // bots on, fast; pretend they've been idle an hour; feed polls let them catch up 20 plays at a time
+    const idle = () => waitFor(() => D.evaluate(() => !window.__tip.ADM.busy && !!document.getElementById('admPanel') && ![...document.querySelectorAll('#devAdmin [data-dev^="adm:"]')].some(b => b.disabled)), 5000);
+    await domClick(D, '#admBotsOn'); await sleep(100); await idle();
+    await D.select('#admSpeed', '3600'); await idle(); await domClick(D, '[data-dev="adm:speed"]'); await sleep(100); await idle();
+    const st = await waitFor(async () => { const r = await fetch(BASE + '/api/admin/status', { headers: { 'x-admin-key': ADMIN_KEY } }); const j = await r.json(); return j.bots.enabled && j.bots.perHour === 3600 && j; }, 5000);
+    check('admin: bots on + speed set through the panel', !!st);
+    check('admin: status without the key is a 404', (await call('/api/admin/status')).status === 404);
+    const start = await D.evaluate(() => window.__tip.API.feed[5].board.plays);
+    await call('/__test/bots?stake=5&minutes=60');
+    const grown = await waitFor(async () => { await D.evaluate(() => window.__tip.pollNow()); const n = await D.evaluate(() => window.__tip.API.feed[5].board.plays); return n >= start + 60 && n; }, 30000, 600);
+    check('bots: lazy catch-up on feed requests (20 per request)', !!grown, `${start} → ${grown}`);
+    await D.evaluate(() => window.__tip.refreshAll());
+    const ui = await D.evaluate(() => ({ botTiles: document.querySelectorAll('#grid .tile.bot').length, patronBots: [...document.querySelectorAll('#grid .tile.patron.bot')].every(t => t.textContent === '🤖'),
+      title: (document.querySelector('#grid .tile.bot') || {}).title || '', pill: (document.querySelector('.botpill') || {}).textContent || '', flips: document.getElementById('feedList').innerText,
+      legend: document.querySelector('.legend').innerText, feedNote: document.getElementById('feedCard').innerText }));
+    check('bots: tiles are labeled 🤖 (class + patron icon + title)', ui.botTiles >= 60 && ui.patronBots && /🤖 .*practice player/.test(ui.title), JSON.stringify({ n: ui.botTiles, t: ui.title }));
+    check('bots: header pill says practice players are on', /🤖 Practice players on/.test(ui.pill), ui.pill);
+    check('bots: latest flips label them 🤖', /🤖/.test(ui.flips) && /practice player/.test(ui.feedNote));
+    check('bots: legend explains 🤖', /🤖\s*Practice player/.test(ui.legend), ui.legend);
+    await D.click('#devToggle'); await sleep(100);
+    await D.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+    await D.screenshot({ path: SHOTS + '11-desktop-board-bots.png' });
+    await D.click('#devToggle'); await sleep(300);
+    // credit top-up for my own player id (prefilled)
+    const u0 = await D.evaluate(() => window.__tip.API.me.wallet.unlocked);
+    await D.$eval('#admAmt', e => { e.value = '50'; }); await idle(); await domClick(D, '[data-dev="adm:credit"]');
+    check('admin: credit top-up lands in the wallet', await waitFor(async () => (await D.evaluate(() => window.__tip.API.me.wallet.unlocked)) === u0 + 50, 6000));
+    await waitFor(() => D.evaluate(() => /credit/.test(document.getElementById('admAudit').innerText)), 4000);
+    await D.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+    await D.screenshot({ path: SHOTS + '11-desktop-dev-panel.png' });
+    // force close via the panel → admin summary with a /fair link; bots' Big Sends carry 🤖
+    const n5 = await D.evaluate(() => window.__tip.API.feed[5].board.n);
+    await idle(); await domClick(D, '[data-dev="adm:close"]');
+    const sm = await waitFor(() => D.$('.modal[data-kind=summary]'), 12000);
+    const stxt = sm ? await D.$eval('.modal[data-kind=summary]', e => e.innerText) : '';
+    check('admin: force close → summary "Closed by admin"', /Closed by admin/.test(stxt), stxt.split('\n')[0]);
+    check('admin: summary links to /fair for that board', !!(await D.$(`.modal[data-kind=summary] a[href="/fair?stake=5&n=${n5}"]`)));
+    const bigs = await call(`/api/board/5?n=${n5}`);
+    check('summary: Big Sends won by bots are named with 🤖', bigs.body.board.summary.bigs.every(b => !b.bot || /^🤖 /.test(b.name)), JSON.stringify(bigs.body.board.summary.bigs));
+    await D.click('.modal [data-close]');
+    // stall +24 h and reset on the $20 board
+    await D.click('.tab[data-stake="20"]'); await waitFor(() => D.evaluate(() => window.__tip.active === 20)); await sleep(300);
+    await D.evaluate(() => window.__tip.refreshAll());
+    const s0 = (await (await fetch(BASE + '/api/admin/status', { headers: { 'x-admin-key': ADMIN_KEY } })).json()).boards.find(b => b.stake === 20);
+    await idle(); await domClick(D, '[data-dev="adm:stall24"]');
+    const s1 = await waitFor(async () => { const b = (await (await fetch(BASE + '/api/admin/status', { headers: { 'x-admin-key': ADMIN_KEY } })).json()).boards.find(x => x.stake === 20); return Date.parse(b.stallAt) < Date.parse(s0.stallAt) - 23 * 36e5 && b; }, 5000);
+    check('admin: stall fast-forward moves the 5-day clock', !!s1);
+    const n20 = s0.n;
+    D.__prompt = () => 'RESET';
+    await idle(); await domClick(D, '[data-dev="adm:reset"]');
+    const rs = await waitFor(() => D.$('.modal[data-kind=summary]'), 12000);
+    const rtxt = rs ? await D.$eval('.modal[data-kind=summary]', e => e.innerText) : '';
+    check('admin: reset (beta) → "was reset" summary with refunds explained', new RegExp(`Board #${n20} was reset`).test(rtxt) && /refunded/.test(rtxt), rtxt.slice(0, 160));
+    if (rs) await D.click('.modal [data-close]');
+    const audit = (await (await fetch(BASE + '/api/admin/status', { headers: { 'x-admin-key': ADMIN_KEY } })).json()).audit.map(a => a.action);
+    check('admin: every panel action wrote an audit row', ['bots', 'credit', 'close', 'stall', 'reset'].every(a => audit.includes(a)), audit.join(','));
+    // forget key
+    if (await D.$eval('#devPanel', e => e.hidden)) { await D.click('#devToggle'); await sleep(200); }
+    await idle(); await domClick(D, '[data-dev=adminForget]'); await sleep(100);
+    check('admin: "Forget key" clears sessionStorage', await D.evaluate(() => sessionStorage.getItem('grokTipBoard.adminKey') === null) && !!(await D.$('[data-dev=adminKey]')));
+  }
+  {
+    // /fair: commit list, client-side verify, tamper detection, CSV/JSON exports
+    const F = await (await browser.createBrowserContext()).newPage(); wire(F); await F.setViewport({ width: 1360, height: 1000 });
+    await F.goto(BASE + '/fair?stake=5', { waitUntil: 'load' });
+    await waitFor(() => F.$('#closedBody table'), 6000);
+    const list = await F.evaluate(() => ({ open: document.getElementById('openCommit') && document.getElementById('openCommit').textContent, rows: [...document.querySelectorAll('#closedBody tbody tr')].map(r => r.dataset.n) }));
+    const feed5 = (await call('/api/board/5')).body;
+    check('/fair lists the open board’s commitment hash', list.open === feed5.board.commit.hash, list.open);
+    check('/fair lists closed boards newest first', list.rows.length >= 2 && Number(list.rows[0]) > Number(list.rows[1]), list.rows.join(','));
+    await F.click(`[data-verify="${list.rows[0]}"]`);
+    const v = await waitFor(() => F.$eval('#verdict', e => e.textContent), 15000);
+    const checks = await F.$$eval('.checks li', l => l.map(x => x.innerText.split('\n')[0]));
+    check('/fair Verify: ✅ recomputed SHA-256 + order + every play', /✅ Verified/.test(v || '') && checks.length >= 5 && checks.every(c => c.startsWith('✅')), checks.join(' | '));
+    check('/fair Verify: bots are marked 🤖 in the draw list', await F.evaluate(() => document.querySelectorAll('#vBody .pill.bot').length > 0));
+    check('/fair deep link updates the URL (?stake=5&n=…)', (await F.evaluate(() => location.search)) === `?stake=5&n=${list.rows[0]}`);
+    await F.screenshot({ path: SHOTS + '11-desktop-fair-verify.png' });
+    const cdp = await browser.target().createCDPSession(); await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: DL, browserContextId: F.browserContext().id });
+    await F.click('#vCsv'); await F.click('#vJson');
+    const got = await waitFor(() => { const x = fs.readdirSync(DL).filter(n => /^tip-board-5-\d+\.(csv|json)$/.test(n)); return x.length === 2 && x; }, 6000);
+    const csvF = got && got.find(n => n.endsWith('.csv')), jsonF = got && got.find(n => n.endsWith('.json'));
+    const csv = csvF ? fs.readFileSync(DL + '/' + csvF, 'utf8').trim().split(/\r?\n/) : [];
+    const snap = (await call(`/api/board/5?n=${list.rows[0]}`)).body;
+    check('/fair CSV export: header + one row per play (+ unselected)', csv[0] === 'board,play_no,square,player,bot,prize,ticket' && csv.length - 1 === snap.squares.length + (snap.board.summary.unselected || []).length, `${csv[0]} · ${csv.length - 1} rows`);
+    check('/fair CSV marks bot plays', csv.some(l => /,yes,/.test(l)));
+    const js = jsonF ? JSON.parse(fs.readFileSync(DL + '/' + jsonF, 'utf8')) : {};
+    check('/fair JSON export: commit, reveal, plays and verify results', js.commit && js.commit.hash === snap.board.commit.hash && js.reveal && js.reveal.salt === snap.board.reveal.salt && js.plays.length === snap.squares.length && js.verify.every(x => x.ok));
+    // tamper: flip one hex digit of the revealed salt in transit → ❌
+    const T = await (await browser.createBrowserContext()).newPage(); wire(T); await T.setViewport({ width: 1360, height: 1000 });
+    await T.setRequestInterception(true);
+    T.on('request', async r => {
+      if (/\/api\/board\/5\?n=/.test(r.url())) { const j = (await call(new URL(r.url()).pathname + new URL(r.url()).search)).body; const s = j.board.reveal.salt; j.board.reveal.salt = s.slice(0, -1) + (s.slice(-1) === '0' ? '1' : '0'); r.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(j) }); }
+      else r.continue();
+    });
+    await T.goto(BASE + `/fair?stake=5&n=${list.rows[0]}`, { waitUntil: 'load' });
+    const tv = await waitFor(() => T.$eval('#verdict', e => e.textContent), 15000);
+    const tch = await T.$$eval('.checks li', l => l.map(x => x.innerText.split('\n')[0]));
+    check('/fair Verify: a tampered salt fails ❌ (hash + order)', /❌/.test(tv || '') && tch.filter(c => c.startsWith('❌')).length >= 2, tch.join(' | '));
+    await T.screenshot({ path: SHOTS + '11-desktop-fair-tampered.png' });
+    await T.browserContext().close();
+    // mobile /fair
+    await F.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+    await F.goto(BASE + `/fair?stake=5&n=${list.rows[0]}`, { waitUntil: 'load' }); await waitFor(() => F.$('#verdict'), 15000);
+    check('/fair mobile: no horizontal scroll', await F.evaluate(() => document.scrollingElement.scrollWidth <= 390));
+    await F.screenshot({ path: SHOTS + '11-mobile-fair.png' });
+    await F.browserContext().close();
+    // turn bots back off for anyone reusing this DB
+    await fetch(BASE + '/api/admin/bots', { method: 'POST', headers: { 'x-admin-key': ADMIN_KEY, 'content-type': 'application/json' }, body: JSON.stringify({ enabled: false }) });
+    await D.browserContext().close();
   }
 
   check('no page errors', errs.length === 0, errs.slice(0, 5).join(' | '));
