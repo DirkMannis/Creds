@@ -147,7 +147,7 @@ test('board feed shape, cache header, and no secrets', async () => {
   const text = await r.text(), f = JSON.parse(text);
   assert.equal(f.v, 1);
   assert.equal(f.pollMs, 4000);
-  assert.deepEqual(Object.keys(f).sort(), ['board', 'held', 'lastClosed', 'next', 'pollMs', 'recent', 'serverTime', 'squares', 'stakes', 'v', 'who']);
+  assert.deepEqual(Object.keys(f).sort(), ['board', 'held', 'lastClosed', 'next', 'pollMs', 'recent', 'recentClosed', 'serverTime', 'squares', 'stakes', 'v', 'who']);
   const b = f.board;
   assert.equal(b.stake, 5); assert.equal(b.n, 1); assert.equal(b.status, 'open'); assert.equal(b.label, '$5 Board #1');
   assert.equal(b.grid, 500); assert.equal(b.closeAt, 400); assert.equal(b.plays, 0); assert.equal(b.bigUnlockAt, 100);
@@ -214,12 +214,12 @@ test('me returns the wallet summary for a token, 401 without one', async () => {
   const r = await me.GET(req('/api/me', { headers: auth }));
   assert.equal(r.status, 200); assert.equal(r.headers.get('cache-control'), 'no-store');
   const m = await r.json();
-  assert.deepEqual(Object.keys(m).sort(), ['boards', 'historyEntries', 'hold', 'payouts', 'player', 'prepicks', 'wallet']);
+  assert.deepEqual(Object.keys(m).sort(), ['boards', 'historyEntries', 'hold', 'payouts', 'player', 'prepicks', 'wallet', 'wins']);
   assert.equal(m.player.id, s.player.id); assert.equal(m.player.cap, 20); assert.equal(m.player.keepBalance, false);
   assert.deepEqual(m.wallet.buckets, []); assert.equal(m.wallet.unlocked, 0); assert.equal(m.wallet.pending, 0);
   assert.equal(m.hold, null); assert.deepEqual(m.prepicks, []);
   assert.deepEqual(Object.keys(m.boards).sort(), ['20', '5']);
-  assert.deepEqual(m.boards['5'], { n: 1, mySquares: 0, roomLeft: 20, earlyAccessNext: false });
+  assert.deepEqual(m.boards['5'], { n: 1, mySquares: 0, squares: [], roomLeft: 20, earlyAccessNext: false });
   // ledger + wins flow into the summary
   const { rows: [bd] } = await pool.query(`SELECT id FROM boards WHERE stake = 5 AND status = 'open'`);
   await pool.query(`INSERT INTO plays (board_id, idx, play_no, player_id, prize, via) VALUES ($1, 100, 3, $2, 1, 'xmoney_sim')`, [bd.id, s.player.id]);
