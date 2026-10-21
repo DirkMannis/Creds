@@ -2,13 +2,13 @@
 // If the request already carries a valid token, returns that player instead of minting a new one.
 import { withPool, tx } from './_lib/db.js';
 import { newToken, hashToken, playerFromRequest, ipKey } from './_lib/auth.js';
-import { json, error, handle, clientIp } from './_lib/http.js';
-import { capFor, SESSIONS_PER_IP_PER_DAY } from './_lib/config.js';
+import { json, error, handle, clientIp, paused } from './_lib/http.js';
+import { PAUSED, capFor, SESSIONS_PER_IP_PER_DAY } from './_lib/config.js';
 import { displayName } from './_lib/board.js';
 
 const view = p => ({ id: Number(p.id), name: displayName(p), boardsPlayed: p.boards_played, cap: capFor(p.boards_played) });
 
-export const POST = handle('session', async request => withPool(async pool => {
+export const POST = handle('session', async request => PAUSED ? paused() : withPool(async pool => {
   const existing = await playerFromRequest(pool, request);
   if (existing) return json({ player: view(existing), reused: true });
 

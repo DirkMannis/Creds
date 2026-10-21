@@ -41,3 +41,6 @@ export async function readJson(request) {
   try { const v = JSON.parse(text); return v && typeof v === 'object' ? v : {}; }
   catch { throw Object.assign(new Error('bad json'), { status: 400, expose: 'Body must be JSON' }); }
 }
+
+/** 503 returned by play/bot/cron endpoints while the game is paused (see PAUSED in config.js). */
+export const paused = () => json({ error: 'The tip game is paused. Back soon.', paused: true }, { status: 503, headers: { 'retry-after': '604800' } });

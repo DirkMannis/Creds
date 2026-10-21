@@ -17,7 +17,7 @@ const PORT = Number(process.argv[2] || process.env.PORT || 8833);
 const DB = process.env.TEST_DB || 'tipboard_ui';
 if (process.env.KEEP_DB) { await startProxy(); process.env.DATABASE_URL = `postgresql://postgres@${PG_HOST}:${PG_PORT}/${DB}`; }
 else await freshDb(DB);
-const INDEX = fileURLToPath(new URL('../index.html', import.meta.url));
+const INDEX = fileURLToPath(new URL('../game-paused/index.html', import.meta.url));
 const FAIR = fileURLToPath(new URL('../fair.html', import.meta.url));
 
 const mod = async p => import(new URL(`../api/${p}`, import.meta.url));
