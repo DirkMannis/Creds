@@ -6,10 +6,11 @@ import { withPool } from '../_lib/db.js';
 import { boardFeed, closedBoard } from '../_lib/board.js';
 import { stallCheck } from '../_lib/engine.js';
 import { botAdvance, botSettings } from '../_lib/bots.js';
-import { json, error, handle, stakeFrom } from '../_lib/http.js';
-import { LIVE_STAKES, STAKES, FEED_S_MAXAGE } from '../_lib/config.js';
+import { json, error, handle, stakeFrom, paused } from '../_lib/http.js';
+import { PAUSED, LIVE_STAKES, STAKES, FEED_S_MAXAGE } from '../_lib/config.js';
 
 export const GET = handle('board', async request => {
+  if (PAUSED) return paused(); // no board opens, no lazy bot plays
   const stake = stakeFrom(request);
   if (!LIVE_STAKES.includes(stake)) {
     const s = STAKES.find(x => x.v === stake);

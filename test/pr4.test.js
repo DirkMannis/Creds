@@ -344,7 +344,7 @@ test('/api/boards lists commit hashes (open + closed, newest first, paginated); 
   assert.equal(vj.cleanUrls, true, '/fair serves fair.html');
   const fair = fs.readFileSync(new URL('../fair.html', import.meta.url), 'utf8');
   assert.match(fair, /crypto\.subtle/); assert.match(fair, /\/api\/boards/);
-  const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const index = fs.readFileSync(new URL('../game-paused/index.html', import.meta.url), 'utf8');
   assert.match(index, /href="\/fair/); assert.ok(!/admin tools arrive in PR ?4/i.test(index));
   assert.match(index, /Beta boards include labeled 🤖 practice players so boards close; removed before real money/);
 });

@@ -5,12 +5,14 @@ import { withPool } from '../_lib/db.js';
 import { tick } from '../_lib/engine.js';
 import { botTick } from '../_lib/bots.js';
 import { isAdmin } from '../_lib/auth.js';
-import { json, error, handle } from '../_lib/http.js';
+import { json, error, handle, paused } from '../_lib/http.js';
+import { PAUSED } from '../_lib/config.js';
 
 export const GET = handle('cron/tick', async request => {
   const secret = process.env.CRON_SECRET;
   const ok = !secret || request.headers.get('authorization') === `Bearer ${secret}` || isAdmin(request);
   if (!ok) return error(401, 'Unauthorized');
+  if (PAUSED) return paused(); // no stall rule, hold cleanup, bot catch-up or pruning while paused
   return json(await withPool(async pool => {
     const r = await tick(pool);
     const bots = await botTick(pool); // backstop: catch bots up even if nobody loaded the board

@@ -39,3 +39,8 @@ export const RATE_WINDOW_S = 60;          // write-endpoint rate limits (per rol
 export const RATE_PER_PLAYER = 30;
 export const RATE_PER_IP = 120;
 export const ADMIN_TOPUP_MAX = 1000;
+
+// ---- Pause switch ----
+// The game is paused: play, session and bot endpoints return 503 and the cron does nothing.
+// To resume, revert the pause-game PR (or set env GAME_PAUSED=false). No data is touched while paused.
+export const PAUSED = process.env.GAME_PAUSED !== 'false';

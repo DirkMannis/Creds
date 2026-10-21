@@ -332,7 +332,7 @@ async function fillPlays(stake, count) { // other players add `count` plays (20 
   {
     const html = await A.content();
     check('no "Lifetime" text anywhere in the page', !/lifetime/i.test(html));
-    const src = fs.readFileSync('/workspace/creds-repo/index.html', 'utf8');
+    const src = fs.readFileSync('/workspace/creds-repo/game-paused/index.html', 'utf8');
     check('no "Lifetime" or 15-minute hold in the shipped index.html', !/lifetime/i.test(src) && !/15[ -]min/i.test(src));
   }
 

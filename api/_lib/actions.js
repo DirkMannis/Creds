@@ -4,9 +4,12 @@ import { withPool } from './db.js';
 import { playerFromRequest } from './auth.js';
 import { json, error, handle, readJson } from './http.js';
 import { rateLimit } from './ratelimit.js';
+import { PAUSED } from './config.js';
+import { paused } from './http.js';
 
 export function playerAction(name, fn) {
   return handle(name, async request => {
+    if (PAUSED) return paused();
     const body = request.method === 'GET' || request.method === 'DELETE' ? {} : await readJson(request);
     return withPool(async pool => {
       const player = await playerFromRequest(pool, request);
